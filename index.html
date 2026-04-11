@@ -738,10 +738,10 @@
                                         
                                         <div className="flex-1 truncate pl-1">
                                             <div className={`font-bold text-xl mb-1 ${isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-300 group-hover:text-emerald-600 dark:group-hover:text-emerald-300 transition-colors'}`}>
-                                                {isWordMasked ? '***' : w.word}
+                                                {isWordMasked ? <span className="tracking-[0.2em]">***</span> : w.word}
                                             </div>
                                             <div className={`text-sm truncate pr-2 ${isActive ? 'text-cyan-700 dark:text-cyan-200/80' : 'text-slate-500 dark:text-slate-500'}`}>
-                                                {isMeaningMasked ? '***' : w.meaning}
+                                                {isMeaningMasked ? <span className="tracking-[0.2em]">***</span> : w.meaning}
                                             </div>
                                         </div>
                                         {hasAI && (
