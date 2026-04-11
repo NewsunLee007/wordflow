@@ -1,0 +1,1413 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WordFlow - AI词汇互动教学大屏版</title>
+    <!-- Tailwind CSS (本地优先，CDN 兜底) -->
+    <script src="./vendor/tailwindcss.min.js" onerror="this.onerror=null;this.src='https://cdn.tailwindcss.com'"></script>
+    <script>
+        // 确保 Tailwind 加载后再配置
+        window.addEventListener('DOMContentLoaded', () => {
+            if (typeof tailwind !== 'undefined') {
+                tailwind.config = {
+                    darkMode: 'class',
+                    theme: {
+                        extend: {
+                            animation: {
+                                'blob': 'blob 7s infinite',
+                                'fade-in-up': 'fadeInUp 0.6s ease-out forwards',
+                                'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                            },
+                            keyframes: {
+                                blob: {
+                                    '0%': { transform: 'translate(0px, 0px) scale(1)' },
+                                    '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
+                                    '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
+                                    '100%': { transform: 'translate(0px, 0px) scale(1)' },
+                                },
+                                fadeInUp: {
+                                    '0%': { opacity: '0', transform: 'translateY(20px)' },
+                                    '100%': { opacity: '1', transform: 'translateY(0)' },
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    </script>
+    <!-- React & ReactDOM (本地优先，CDN 兜底) -->
+    <script src="./vendor/react.production.min.js" onerror="this.onerror=null;this.src='https://unpkg.com/react@18/umd/react.production.min.js'"></script>
+    <script src="./vendor/react-dom.production.min.js" onerror="this.onerror=null;this.src='https://unpkg.com/react-dom@18/umd/react-dom.production.min.js'"></script>
+    <!-- Babel for JSX (本地优先，CDN 兜底) -->
+    <script src="./vendor/babel.min.js" onerror="this.onerror=null;this.src='https://unpkg.com/@babel/standalone/babel.min.js'"></script>
+    <!-- Lucide Icons (本地优先，CDN 兜底) -->
+    <script src="./vendor/lucide.min.js" onerror="this.onerror=null;this.src='https://unpkg.com/lucide@latest'"></script>
+
+    <style>
+        :root {
+            --app-bg: #f8fafc;
+            --app-text: #0f172a;
+            --panel-bg: rgba(255, 255, 255, 0.75);
+            --panel-border: rgba(16, 185, 129, 0.18);
+            --scroll-track: rgba(226, 232, 240, 0.8);
+        }
+
+        .dark {
+            --app-bg: #0f172a;
+            --app-text: #f8fafc;
+            --panel-bg: rgba(30, 41, 59, 0.6);
+            --panel-border: rgba(16, 185, 129, 0.15);
+            --scroll-track: rgba(15, 23, 42, 0.5);
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--app-bg);
+            color: var(--app-text);
+            overflow: hidden;
+        }
+
+        /* 酷炫的自定义滚动条 */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--scroll-track);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(16, 185, 129, 0.3);
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(16, 185, 129, 0.6);
+        }
+
+        .glass-panel {
+            background: var(--panel-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--panel-border);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .neon-text {
+            text-shadow: 0 0 20px rgba(52, 211, 153, 0.5);
+        }
+
+        .word-title {
+            font-family: 'Arial Rounded MT Bold', 'Helvetica Rounded', Arial, sans-serif;
+        }
+    </style>
+    <!-- 离线预置数据 (包含词表、AI解析、音频与图片映射) -->
+    <script src="./data/prebuilt_data.js"></script>
+</head>
+
+<body class="antialiased selection:bg-emerald-500 selection:text-white">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useRef, useCallback } = React;
+
+        // 默认样例数据
+        const defaultDataText = `教材,年级,册别,单元,单词,中文释义,音标,词性
+外研版,七年级,下册,1,chocolate,巧克力，朱古力,/ˈtʃɒklət/,n.
+外研版,七年级,下册,1,factory,工厂，制造厂,/ˈfæktri/,n.
+外研版,七年级,下册,1,exciting,令人兴奋的；使人激动的；刺激的,/ɪkˈsaɪtɪŋ/,adj.
+外研版,七年级,下册,1,magical,奇异的，美妙的，迷人的,/ˈmædʒɪkl/,adj.
+外研版,七年级,下册,1,town,镇，城镇，市镇,/taʊn/,n.
+外研版,七年级,下册,1,poor,贫穷的，贫困的,/pɔː/,adj.
+外研版,七年级,下册,1,watery,稀薄的，味淡的,/ˈwɔːtəri/,adj.
+外研版,七年级,下册,1,cabbage,卷心菜，洋白菜,/ˈkæbɪdʒ/,n.
+外研版,七年级,下册,1,freezing,极冷的，严寒的,/ˈfriːzɪŋ/,adj.
+外研版,七年级,下册,1,become,变成，变得,/bɪˈkʌm/,v.
+外研版,七年级,下册,6,places of interest,名胜,/ˈpleɪsɪz əv ˈɪntrəst/,phr.
+外研版,七年级,下册,6,hotel,宾馆，酒店,/həʊˈtel/,n.
+外研版,七年级,下册,6,comfortable,舒适的,/ˈkʌmftəbl/,adj.
+外研版,七年级,下册,6,other,另外的，其他的,/ˈʌðə/,adj.
+外研版,七年级,下册,6,waterfall,瀑布,/ˈwɔːtəfɔːl/,n.
+外研版,七年级,下册,6,powerful,猛烈的，有力的,/ˈpaʊəfl/,adj.
+外研版,七年级,下册,6,thunder,雷声,/ˈθʌndə/,n.
+外研版,七年级,下册,6,painting,绘画（作品）,/ˈpeɪntɪŋ/,n.
+外研版,七年级,下册,6,roller coaster,过山车,/ˈrəʊlə ˈkəʊstə/,phr.
+外研版,七年级,下册,6,huge,巨大的，庞大的,/hjuːdʒ/,adj.
+外研版,七年级,下册,6,myself,我自己,/maɪˈself/,pron.`;
+
+        // 简易 CSV 解析器 (已修复短语空格截断问题)
+        const parseCSV = (text) => {
+            const lines = text.trim().split(/\r?\n/);
+            const data = [];
+            for (let i = 1; i < lines.length; i++) {
+                if (!lines[i].trim()) continue;
+                
+                // 严谨正则：按逗号分割但忽略引号内的逗号，保留空格
+                const row = lines[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+                
+                if (row.length >= 8) {
+                    data.push({
+                        textbook: row[0]?.replace(/^"|"$/g, '').replace(/""/g, '"').trim(),
+                        grade: row[1]?.replace(/^"|"$/g, '').replace(/""/g, '"').trim(),
+                        term: row[2]?.replace(/^"|"$/g, '').replace(/""/g, '"').trim(),
+                        unit: row[3]?.replace(/^"|"$/g, '').replace(/""/g, '"').trim(),
+                        word: row[4]?.replace(/^"|"$/g, '').replace(/""/g, '"').trim(),
+                        meaning: row[5]?.replace(/^"|"$/g, '').replace(/""/g, '"').trim(),
+                        phonetic: row[6]?.replace(/^"|"$/g, '').replace(/""/g, '"').trim(),
+                        pos: row[7]?.replace(/^"|"$/g, '').replace(/""/g, '"').trim()
+                    });
+                }
+            }
+            return data;
+        };
+
+        const getLocalData = (key, defaultVal) => {
+            const saved = localStorage.getItem(key);
+            if (saved !== null) {
+                try { return JSON.parse(saved); } catch (e) { return saved; } // 返回原始字符串，解决 API key 丢失问题
+            }
+            return defaultVal;
+        };
+
+        // 安全 Icon 组件
+        const Icon = ({ name, className, style }) => {
+            const containerRef = useRef(null);
+            const styleString = JSON.stringify(style || {});
+
+            useEffect(() => {
+                let timer;
+                const initIcon = () => {
+                    // 安全获取 lucide 对象：无论是挂载在 window.lucide 还是直接作为全局变量 lucide
+                    const lucideObj = window.lucide || (typeof lucide !== 'undefined' ? lucide : null);
+
+                    if (containerRef.current && lucideObj && typeof lucideObj.createIcons === 'function') {
+                        const iconElement = document.createElement('i');
+                        iconElement.setAttribute('data-lucide', name);
+                        if (className) iconElement.className = className;
+                        
+                        containerRef.current.innerHTML = '';
+                        containerRef.current.appendChild(iconElement);
+                        
+                        try {
+                            lucideObj.createIcons({ root: containerRef.current });
+                            const svg = containerRef.current.querySelector('svg');
+                            if (svg && style) {
+                                Object.assign(svg.style, style);
+                            }
+                        } catch (e) {
+                            console.error("Failed to create icon:", name, e);
+                        }
+                    } else {
+                        // 继续轮询
+                        timer = setTimeout(initIcon, 100);
+                    }
+                };
+
+                initIcon();
+
+                return () => clearTimeout(timer);
+            }, [name, className, styleString]);
+
+            return <span ref={containerRef} className="inline-flex items-center justify-center"></span>;
+        };
+
+        function App() {
+            const [words, setWords] = useState(() => {
+                const saved = localStorage.getItem('vocabularyData');
+                if (saved) {
+                    try {
+                        const parsed = JSON.parse(saved);
+                        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+                    } catch (e) {}
+                }
+                const prebuilt = window.__VOCAB__;
+                if (Array.isArray(prebuilt) && prebuilt.length > 0) return prebuilt;
+                return parseCSV(defaultDataText);
+            });
+            const [aiCache, setAiCache] = useState(() => {
+                const prebuilt = window.__AI_CACHE__ || {};
+                const local = getLocalData('aiWordCache', {});
+                return { ...prebuilt, ...local };
+            });
+            const [aiProvider, setAiProvider] = useState(() => getLocalData('aiProvider', 'deepseek')); // deepseek | openai | custom
+            const [apiKey, setApiKey] = useState(() => getLocalData('deepseekApiKey', ''));
+            const [customApiUrl, setCustomApiUrl] = useState(() => getLocalData('customApiUrl', 'https://api.deepseek.com/v1'));
+            const [aiModel, setAiModel] = useState(() => getLocalData('aiModel', 'deepseek-chat'));
+            const [availableModels, setAvailableModels] = useState([]);
+            const [isFetchingModels, setIsFetchingModels] = useState(false);
+            const [fetchModelSuccess, setFetchModelSuccess] = useState(false);
+            const [isTestingApi, setIsTestingApi] = useState(false);
+            const [ttsEndpoint, setTtsEndpoint] = useState(() => getLocalData('ttsEndpoint', ''));
+            const [aiDetailMode, setAiDetailMode] = useState(() => getLocalData('aiDetailMode', 'normal'));
+            const [exampleSpeed, setExampleSpeed] = useState(() => parseFloat(getLocalData('exampleSpeed', '1.0')));
+            const [ttsVoice, setTtsVoice] = useState(() => getLocalData('ttsVoice', 'en-US-AriaNeural'));
+            const [themeMode, setThemeMode] = useState(() => getLocalData('themeMode', 'system')); // system | light | dark
+            
+            const [voices, setVoices] = useState([]);
+            const [selectedVoiceURI, setSelectedVoiceURI] = useState(() => getLocalData('preferredVoiceURI', ''));
+            
+            // 自动实时保存设置到 localStorage，防止刷新丢失（针对部分允许 file:// 存储的浏览器）
+            useEffect(() => {
+                localStorage.setItem('deepseekApiKey', apiKey);
+                localStorage.setItem('aiProvider', aiProvider);
+                localStorage.setItem('customApiUrl', customApiUrl);
+                localStorage.setItem('aiModel', aiModel);
+                localStorage.setItem('ttsEndpoint', ttsEndpoint);
+            }, [apiKey, aiProvider, customApiUrl, aiModel, ttsEndpoint]);
+
+            const [currentUnit, setCurrentUnit] = useState(null);
+            const [currentWord, setCurrentWord] = useState(null);
+
+            const [currentSlide, setCurrentSlide] = useState(0);
+            const [sidebarWidth, setSidebarWidth] = useState(() => Number(getLocalData('sidebarWidth', 320)) || 320);
+            
+            // 新增交互控制状态
+            const [revealedSections, setRevealedSections] = useState({});
+            const [isWordMasked, setIsWordMasked] = useState(false);
+            const [isMeaningMasked, setIsMeaningMasked] = useState(false);
+            const [speakMode, setSpeakMode] = useState('normal'); // 'normal' | 'teaching'
+            
+            // 自动跟读控制状态
+            const [isAutoPlaying, setIsAutoPlaying] = useState(false);
+            const [autoPlayInterval, setAutoPlayInterval] = useState(3); // 默认间隔3秒
+            
+            const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+            const [showSettings, setShowSettings] = useState(false);
+            const [isLoading, setIsLoading] = useState(false);
+            const [loadingProgress, setLoadingProgress] = useState(0);
+
+            const fileInputRef = useRef(null);
+            const contentRef = useRef(null); 
+            const isResizingSidebarRef = useRef(false);
+            const audioDbRef = useRef(null);
+
+            const getWordKey = useCallback((w) => {
+                if (!w) return '';
+                const parts = [w.textbook, w.grade, w.term, w.unit, w.word].map(v => (v ?? '').toString().trim());
+                return parts.join('|');
+            }, []);
+
+            const currentWordKey = useMemo(() => getWordKey(currentWord), [currentWord, getWordKey]);
+
+            useEffect(() => {
+                const media = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+                const applyTheme = () => {
+                    const shouldDark = themeMode === 'dark' || (themeMode === 'system' && media && media.matches);
+                    document.documentElement.classList.toggle('dark', shouldDark);
+                };
+
+                applyTheme();
+
+                if (media && themeMode === 'system') {
+                    const handler = () => applyTheme();
+                    if (media.addEventListener) media.addEventListener('change', handler);
+                    else media.addListener(handler);
+                    return () => {
+                        if (media.removeEventListener) media.removeEventListener('change', handler);
+                        else media.removeListener(handler);
+                    };
+                }
+            }, [themeMode]);
+
+            // 加载语音
+            useEffect(() => {
+                const loadVoices = () => {
+                    const availableVoices = window.speechSynthesis.getVoices();
+                    const englishVoices = availableVoices.filter(v => v.lang.startsWith('en'));
+                    setVoices(englishVoices);
+
+                    if (!getLocalData('preferredVoiceURI', '') && englishVoices.length > 0) {
+                        const defaultFemale = englishVoices.find(v => 
+                            v.name.includes('Female') || v.name.includes('Hazel') || 
+                            v.name.includes('Zira') || v.name.includes('Samantha') || 
+                            v.name.includes('Google UK English Female') 
+                        );
+                        setSelectedVoiceURI(defaultFemale ? defaultFemale.voiceURI : englishVoices[0].voiceURI);
+                    }
+                };
+
+                loadVoices();
+                if (window.speechSynthesis.onvoiceschanged !== undefined) {
+                    window.speechSynthesis.onvoiceschanged = loadVoices;
+                }
+            }, []);
+
+            // 切换单词时重置主内容滚动条与状态
+            useEffect(() => {
+                if (contentRef.current) {
+                    contentRef.current.scrollTop = 0;
+                }
+                setRevealedSections({}); // 切换单词时重新锁定模块
+                setCurrentSlide(0);
+            }, [currentWord]);
+
+            // 左侧单词列表跟随选中单词自动滚动
+            useEffect(() => {
+                if (currentWord) {
+                    // 使用 setTimeout 确保渲染完毕后执行滚动
+                    setTimeout(() => {
+                        const el = document.getElementById(`word-btn-${currentWord.word}`);
+                        if (el) {
+                            el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        }
+                    }, 50);
+                }
+            }, [currentWord]);
+
+            // 切换单元时，强制关闭自动播放
+            useEffect(() => {
+                setIsAutoPlaying(false);
+            }, [currentUnit]);
+
+            useEffect(() => {
+                const onKeyDown = (e) => {
+                    const tag = document.activeElement && document.activeElement.tagName;
+                    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+                    if (e.key === 'ArrowLeft') setCurrentSlide(s => Math.max(0, s - 1));
+                    if (e.key === 'ArrowRight') setCurrentSlide(s => Math.min(2, s + 1));
+                };
+
+                window.addEventListener('keydown', onKeyDown);
+                return () => window.removeEventListener('keydown', onKeyDown);
+            }, []);
+
+            useEffect(() => {
+                const clamp = (val, min, max) => Math.min(max, Math.max(min, val));
+                const onMove = (e) => {
+                    if (!isResizingSidebarRef.current) return;
+                    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                    const width = clamp(clientX, 240, 440);
+                    setSidebarWidth(width);
+                };
+                const onUp = () => {
+                    if (!isResizingSidebarRef.current) return;
+                    isResizingSidebarRef.current = false;
+                    localStorage.setItem('sidebarWidth', String(sidebarWidth));
+                };
+
+                window.addEventListener('mousemove', onMove);
+                window.addEventListener('mouseup', onUp);
+                window.addEventListener('touchmove', onMove, { passive: false });
+                window.addEventListener('touchend', onUp);
+                window.addEventListener('touchcancel', onUp);
+
+                return () => {
+                    window.removeEventListener('mousemove', onMove);
+                    window.removeEventListener('mouseup', onUp);
+                    window.removeEventListener('touchmove', onMove);
+                    window.removeEventListener('touchend', onUp);
+                    window.removeEventListener('touchcancel', onUp);
+                };
+            }, [sidebarWidth]);
+
+            const startSidebarResize = (e) => {
+                e.preventDefault();
+                isResizingSidebarRef.current = true;
+            };
+
+            const units = useMemo(() => {
+                const u = [...new Set(words.map(w => w.unit))].sort((a, b) => parseInt(a) - parseInt(b));
+                if (u.length > 0 && !currentUnit) setCurrentUnit(u[0]);
+                return u;
+            }, [words]);
+
+            const currentWords = useMemo(() => {
+                const w = words.filter(w => w.unit === currentUnit);
+                if (w.length > 0 && (!currentWord || currentWord.unit !== currentUnit)) {
+                    setCurrentWord(w[0]);
+                }
+                return w;
+            }, [words, currentUnit]);
+
+            // 发音功能（优先使用在线 TTS 或预置音频，失败回退浏览器自带语音）
+            const speakWord = useCallback(async (text, isSentence = false) => {
+                const playSingle = async () => {
+                    // 1. 尝试读取预置离线音频映射 (预留)
+                    if (window.__AUDIO_MAP__ && window.__AUDIO_MAP__[text]) {
+                        return new Promise((resolve) => {
+                            const audio = new Audio(window.__AUDIO_MAP__[text]);
+                            audio.onended = resolve;
+                            audio.onerror = () => resolve(playFallback());
+                            audio.play().catch(() => resolve(playFallback()));
+                        });
+                    }
+
+                    // 2. 尝试在线高质量 TTS 接口
+                    if (ttsEndpoint) {
+                        try {
+                            const url = `${ttsEndpoint}?text=${encodeURIComponent(text)}&isSentence=${isSentence}`;
+                            return new Promise((resolve) => {
+                                const audio = new Audio(url);
+                                audio.playbackRate = isSentence ? exampleSpeed : 1.0;
+                                audio.onended = resolve;
+                                audio.onerror = () => resolve(playFallback());
+                                audio.play().catch(() => resolve(playFallback()));
+                            });
+                        } catch (e) {
+                            console.warn("TTS 请求失败，回退系统语音", e);
+                        }
+                    }
+
+                    // 3. 兜底方案：浏览器系统自带 TTS
+                    return playFallback();
+                };
+
+                const playFallback = () => new Promise((resolve) => {
+                    if ('speechSynthesis' in window) {
+                        window.speechSynthesis.cancel();
+                        const utterance = new SpeechSynthesisUtterance(text);
+                        window._currentUtterance = utterance; 
+                        
+                        utterance.lang = 'en-GB'; 
+                        utterance.rate = isSentence ? exampleSpeed : 0.85; 
+
+                        if (selectedVoiceURI) {
+                            const voice = voices.find(v => v.voiceURI === selectedVoiceURI);
+                            if (voice) utterance.voice = voice;
+                        }
+
+                        utterance.onend = () => resolve();
+                        utterance.onerror = () => resolve();
+
+                        window.speechSynthesis.speak(utterance);
+                    } else {
+                        resolve();
+                    }
+                });
+
+                if (speakMode === 'teaching' && !isSentence) {
+                    const isPhrase = text.includes(' ') || text.includes('-');
+                    const pauseTime = isPhrase ? 2500 : 1500; // 短语多停顿1秒
+
+                    await playSingle();
+                    await new Promise(r => setTimeout(r, pauseTime)); // 教学带读：停顿1.5秒或2.5秒
+                    await playSingle(); // 重复第二遍
+                } else {
+                    await playSingle();
+                }
+            }, [voices, selectedVoiceURI, speakMode, ttsEndpoint, exampleSpeed]);
+
+            // 自动跟读核心逻辑 Loop
+            useEffect(() => {
+                let timeoutId;
+                let isActive = true;
+
+                const playSequence = async () => {
+                    if (isAutoPlaying && currentWord) {
+                        // 1. 发音当前单词并等待发音结束
+                        await speakWord(currentWord.word, false);
+                        if (!isActive) return;
+
+                        // 2. 发音结束后，等待指定的间隔时长
+                        // 如果是短语 (包含空格或连字符，或者词性为 phr.)，间隔自动增加1秒
+                        const isPhrase = currentWord.word.includes(' ') || currentWord.word.includes('-') || currentWord.pos === 'phr.';
+                        const extraDelay = isPhrase ? 1 : 0;
+                        const finalInterval = (autoPlayInterval + extraDelay) * 1000;
+
+                        timeoutId = setTimeout(() => {
+                            if (!isActive) return;
+                            
+                            // 3. 寻找并切换到下一个单词
+                            const currentIndex = currentWords.findIndex(w => w.word === currentWord.word);
+                            if (currentIndex >= 0 && currentIndex < currentWords.length - 1) {
+                                setCurrentWord(currentWords[currentIndex + 1]);
+                            } else {
+                                // 已经读到本单元末尾，停止跟读
+                                setIsAutoPlaying(false); 
+                            }
+                        }, finalInterval);
+                    }
+                };
+
+                playSequence();
+
+                // 清理函数：如果用户点击其他单词打断了当前流程，清除旧的定时器
+                return () => {
+                    isActive = false;
+                    clearTimeout(timeoutId);
+                };
+            }, [currentWord, isAutoPlaying, autoPlayInterval, currentWords, speakWord]);
+
+
+            const handleVoiceChange = (e) => {
+                const uri = e.target.value;
+                setSelectedVoiceURI(uri);
+                localStorage.setItem('preferredVoiceURI', uri);
+                speakWord("Hello, this is my voice. Nice to meet you.", true);
+            };
+
+            const fetchAIForWord = async (wordObj) => {
+                if (!apiKey) { alert("请先在设置中填写 API Key"); return null; }
+
+                let examplesCount = 3;
+                let detailInstruction = "提供标准深度的解析，语言生动易懂。";
+                if (aiDetailMode === 'simple') {
+                    examplesCount = 2;
+                    detailInstruction = "提供精简的解析，语言简练，适合快速浏览。";
+                } else if (aiDetailMode === 'detailed') {
+                    examplesCount = 4;
+                    detailInstruction = "提供极其详细、深入的解析，提供更多背景知识和相关考点，适合教师备课使用。";
+                }
+
+                const prompt = `你是一个专业的初中英语教师，请针对外研版七年级英语单词/短语 "${wordObj.word}" (词性: ${wordObj.pos}, 释义: ${wordObj.meaning}) 提供一份高质量的教学解析。
+请务必只返回合法的JSON对象（不要有markdown代码块等额外文本），严格符合以下结构：
+{
+  "emoji": "用1个最生动贴切的emoji表情表示这个词",
+  "etymology": "词源与构词法（解释前缀、后缀、词根等，或提供一个有趣的故事帮助记忆。${detailInstruction}）",
+  "memory": "趣味记忆法（谐音、联想、顺口溜等。${detailInstruction}）",
+  "usage": "核心搭配与考点（列出常考短语、固定搭配或易错点。${detailInstruction}）",
+  "examples": [ // 必须提供恰好 ${examplesCount} 个例句，并包含初中生能理解的语境
+    {
+      "en": "适合七年级学生的经典例句(英文)。要求：语境生动，不要太简单，但也别超出初一词汇大纲。", 
+      "zh": "地道且自然的中文翻译"
+    } // ... 请提供 ${examplesCount} 个例句
+  ]
+}`;
+                try {
+                    let apiUrl = `${customApiUrl}/chat/completions`;
+
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+                        body: JSON.stringify({
+                            model: aiModel,
+                            messages: [
+                                { role: "system", "content": "You are a helpful assistant that strictly outputs JSON." },
+                                { role: "user", "content": prompt }
+                            ],
+                            response_format: { type: "json_object" }
+                        })
+                    });
+                    if (!response.ok) throw new Error(`API Error: ${response.status}`);
+                    const result = await response.json();
+                    let content = result.choices[0].message.content.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+                    return JSON.parse(content);
+                } catch (error) {
+                    console.error("AI 提取错误:", error);
+                    return null;
+                }
+            };
+
+            const generateCurrentWordAI = async () => {
+                if (!currentWord) return;
+                setIsLoading(true);
+                const result = await fetchAIForWord(currentWord);
+                if (result) {
+                    const key = getWordKey(currentWord);
+                    const newCache = { ...aiCache, [key]: result };
+                    setAiCache(newCache);
+                    localStorage.setItem('aiWordCache', JSON.stringify(newCache));
+                } else {
+                    alert("生成失败，请检查网络或 API Key。");
+                }
+                setIsLoading(false);
+            };
+
+            const generateUnitAI = async () => {
+                if (!confirm(`确定要批量预加载 Unit ${currentUnit} 所有单词的AI数据吗？`)) return;
+                setIsLoading(true);
+                setLoadingProgress(1);
+                let currentNewCache = { ...aiCache };
+                let total = currentWords.length;
+                let count = 0;
+
+                for (let w of currentWords) {
+                    const key = getWordKey(w);
+                    if (!currentNewCache[key]) {
+                        const result = await fetchAIForWord(w);
+                        if (result) {
+                            currentNewCache[key] = result;
+                            localStorage.setItem('aiWordCache', JSON.stringify(currentNewCache));
+                            setAiCache({...currentNewCache});
+                        }
+                        await new Promise(r => setTimeout(r, 1000));
+                    }
+                    count++;
+                    setLoadingProgress(Math.floor((count / total) * 100));
+                }
+                setIsLoading(false);
+                setLoadingProgress(0);
+            };
+
+            const handleFileUpload = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    const parsedData = parseCSV(evt.target.result);
+                    if (parsedData.length > 0) {
+                        setWords(parsedData);
+                        localStorage.setItem('vocabularyData', JSON.stringify(parsedData));
+                        alert(`成功导入 ${parsedData.length} 个单词（含短语）！`);
+                    } else {
+                        alert("解析失败，请检查CSV格式。");
+                    }
+                };
+                reader.readAsText(file);
+            };
+
+            const currentWordAI = currentWordKey ? aiCache[currentWordKey] : null;
+
+            // AI 配图生成逻辑 (利用 Pollinations API 兜底免费生成，优先读取预置图片映射)
+            const generateImageUrl = (word, meaning) => {
+                if (window.__IMAGE_MAP__ && window.__IMAGE_MAP__[word]) {
+                    return window.__IMAGE_MAP__[word];
+                }
+                const prompt = `A clear, educational illustration for junior high school students learning the English word '${word}'. It means '${meaning}'. Style: bright, engaging, realistic or high-quality 3D. No text in the image.`;
+                return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=800&height=800&nologo=true`;
+            };
+
+            // 分步展示遮罩组件
+            const SectionMask = ({ sectionName, title, iconColorClass }) => {
+                if (revealedSections[sectionName]) return null;
+                return (
+                    <div 
+                        className="absolute inset-0 z-20 backdrop-blur-xl bg-slate-50/70 dark:bg-slate-900/70 rounded-3xl flex flex-col items-center justify-center cursor-pointer group transition-all duration-300 hover:bg-slate-900/50" 
+                        onClick={() => setRevealedSections(prev => ({ ...prev, [sectionName]: true }))}
+                    >
+                        <div className={`p-4 bg-white/80 dark:bg-slate-800/80 rounded-full mb-4 border border-slate-300 dark:border-slate-600 group-hover:scale-110 transition-transform shadow-[0_0_15px_rgba(0,0,0,0.5)] ${iconColorClass}`}>
+                            <Icon name="unlock" className="w-8 h-8" />
+                        </div>
+                        <p className="text-xl font-bold text-slate-700 dark:text-slate-300 group-hover:text-white flex items-center gap-2">
+                            点击解锁 <span className={iconColorClass.split(' ')[0]}>{title}</span>
+                        </p>
+                    </div>
+                );
+            };
+
+            return (
+                <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-900 relative">
+                    
+                    {/* 炫酷的背景发光动画球体 */}
+                    <div className="absolute top-0 -left-4 w-96 h-96 bg-emerald-500 rounded-full mix-blend-multiply filter blur-[128px] opacity-20 animate-blob pointer-events-none"></div>
+                    <div className="absolute top-0 -right-4 w-96 h-96 bg-cyan-500 rounded-full mix-blend-multiply filter blur-[128px] opacity-20 animate-blob animation-delay-2000 pointer-events-none"></div>
+                    <div className="absolute -bottom-8 left-20 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-[128px] opacity-20 animate-blob animation-delay-4000 pointer-events-none"></div>
+
+                    {/* 左侧边栏 - 暗黑玻璃态 */}
+                    <div
+                        className={`fixed z-30 inset-y-0 left-0 transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0 transition-transform duration-500 ease-out bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-xl border-r border-slate-200/50 dark:border-slate-700/50 flex flex-col shadow-2xl relative`}
+                        style={{ width: sidebarWidth }}
+                    >
+                        <div className="p-5 bg-gradient-to-r from-emerald-900/50 to-slate-800/50 border-b border-emerald-500/20">
+                            <h1 className="text-2xl font-bold flex items-center gap-3 text-emerald-600 dark:text-emerald-400 neon-text">
+                                <img src="https://p.ipic.vip/lmzked.jpg" alt="Logo" className="w-8 h-8 rounded-lg object-cover" /> AI 词汇互动教学
+                            </h1>
+                            <p className="text-xs text-emerald-700/60 dark:text-emerald-200/60 mt-2 tracking-widest uppercase">WordFlow · 智能词汇互动教学</p>
+                        </div>
+
+                        {/* 单元选择 */}
+                        <div className="p-4 border-b border-slate-200/50 dark:border-slate-700/50 flex items-center gap-3 bg-white/30 dark:bg-slate-800/30">
+                            <Icon name="layers" className="text-emerald-500 w-5 h-5" />
+                            <select 
+                                className="flex-1 bg-transparent text-slate-800 dark:text-slate-200 font-bold focus:outline-none cursor-pointer text-lg appearance-none"
+                                value={currentUnit || ''}
+                                onChange={(e) => setCurrentUnit(e.target.value)}
+                            >
+                                {units.map(u => <option key={u} value={u} className="bg-white dark:bg-slate-800">Module / Unit {u}</option>)}
+                            </select>
+                            <Icon name="chevron-down" className="text-slate-500 w-4 h-4 pointer-events-none" />
+                        </div>
+
+                        {/* 单词列表 */}
+                        <div className="flex-1 overflow-y-auto hide-scrollbar p-3 space-y-2 relative">
+                            {currentWords.map((w, idx) => {
+                                const isActive = currentWord === w;
+                                const hasAI = aiCache[getWordKey(w)];
+                                return (
+                                    <button
+                                        id={`word-btn-${w.word}`}
+                                        key={idx}
+                                        onClick={() => { setCurrentWord(w); if(window.innerWidth < 768) setIsSidebarOpen(false); }}
+                                        className={`w-full text-left px-5 py-4 rounded-2xl transition-all duration-300 flex items-center justify-between group relative ${isActive ? 'bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 dark:from-emerald-600/20 dark:to-cyan-600/20 border border-emerald-400/50 dark:border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.1)] dark:shadow-[0_0_15px_rgba(16,185,129,0.2)]' : 'hover:bg-slate-200/50 dark:hover:bg-slate-800/50 border border-transparent hover:border-slate-300 dark:hover:border-slate-600'}`}
+                                    >
+                                        {/* 跟读时的活动指示器 */}
+                                        {isActive && isAutoPlaying && (
+                                            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-8 bg-emerald-500 dark:bg-emerald-400 rounded-r-md animate-pulse"></div>
+                                        )}
+                                        
+                                        <div className="flex-1 truncate pl-1">
+                                            <div className={`font-bold text-xl mb-1 ${isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-300 group-hover:text-emerald-600 dark:group-hover:text-emerald-300 transition-colors'}`}>
+                                                {w.word}
+                                            </div>
+                                            <div className={`text-sm truncate pr-2 ${isActive ? 'text-cyan-700 dark:text-cyan-200/80' : 'text-slate-500 dark:text-slate-500'}`}>
+                                                {w.meaning}
+                                            </div>
+                                        </div>
+                                        {hasAI && (
+                                            <div className={`p-2 rounded-full ${isActive ? 'bg-emerald-500/20' : 'bg-slate-200 dark:bg-slate-800'}`}>
+                                                <Icon name="sparkles" className={`w-4 h-4 ${isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}`} />
+                                            </div>
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        
+                        {/* 底部工具栏 */}
+                        <div className="p-4 border-t border-slate-200/50 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-900/50 flex gap-3">
+                            <button onClick={() => setShowSettings(true)} className="flex-1 py-3 px-3 bg-white/80 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 hover:border-emerald-500/50 rounded-xl text-sm font-bold text-slate-700 dark:text-slate-300 hover:text-emerald-400 transition-all flex items-center justify-center gap-2">
+                                <Icon name="settings" className="w-4 h-4" /> 设置
+                            </button>
+                            <div className="flex-1 flex gap-2">
+                                <label className="flex-1 py-3 px-3 bg-gradient-to-r from-emerald-500/10 to-cyan-500/10 dark:from-emerald-600/20 dark:to-cyan-600/20 border border-emerald-400/30 dark:border-emerald-500/30 hover:border-emerald-500 dark:hover:border-emerald-400 rounded-xl text-sm font-bold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 cursor-pointer transition-all flex items-center justify-center gap-2 text-center shadow-[0_0_10px_rgba(16,185,129,0.05)] dark:shadow-[0_0_10px_rgba(16,185,129,0.1)]">
+                                    <Icon name="upload-cloud" className="w-4 h-4" /> 导入
+                                    <input type="file" accept=".csv" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
+                                </label>
+                                <button 
+                                    onClick={() => {
+                                        const csvContent = "教材,年级,学期,单元,单词,释义,音标,词性\n外研版,七年级,下册,1,chocolate,巧克力,/'tʃɒklət/,n.";
+                                        const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
+                                        const link = document.createElement("a");
+                                        link.href = URL.createObjectURL(blob);
+                                        link.download = "词汇导入模板.csv";
+                                        link.click();
+                                    }} 
+                                    className="py-3 px-3 bg-white/80 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors flex items-center justify-center" 
+                                    title="下载 CSV 导入模板"
+                                >
+                                    <Icon name="download" className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div
+                            className="hidden md:block absolute top-0 right-0 h-full w-2 cursor-col-resize z-40"
+                            onMouseDown={startSidebarResize}
+                            onTouchStart={startSidebarResize}
+                        />
+                    </div>
+
+                    {/* 移动端遮罩 */}
+                    {isSidebarOpen && <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-20 md:hidden" onClick={() => setIsSidebarOpen(false)}></div>}
+
+                    {/* 右侧主内容区 */}
+                    <div className="flex-1 flex flex-col h-full relative z-10">
+                        
+                        {/* 顶栏控制 - 增加了跟读中控台 */}
+                        <div className="h-24 md:h-20 flex items-center justify-between px-4 lg:px-12 shrink-0 border-b border-slate-200/30 dark:border-slate-700/30 bg-white/20 dark:bg-slate-800/20">
+                            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-3 bg-white/80 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 hover:border-emerald-500 rounded-xl shadow-lg md:hidden text-slate-700 dark:text-slate-300 transition-colors mr-3 shrink-0">
+                                <Icon name="menu" className="w-6 h-6" />
+                            </button>
+                            
+                            {/* 自动跟读控制台 */}
+                            {currentWord && (
+                                <div className="flex items-center gap-2 md:gap-4 bg-white/60 dark:bg-slate-800/60 rounded-2xl p-2 border border-slate-200 dark:border-slate-700 shadow-inner">
+                                    <button 
+                                        onClick={() => setIsAutoPlaying(!isAutoPlaying)}
+                                        className={`whitespace-nowrap px-4 md:px-6 py-2.5 rounded-xl font-bold text-sm md:text-base flex items-center gap-2 transition-all duration-300 shadow-lg ${ isAutoPlaying ? 'bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400 border border-red-300 dark:border-red-500/50 shadow-sm dark:shadow-[0_0_15px_rgba(239,68,68,0.2)] hover:bg-red-200 dark:hover:bg-red-500/30' : 'bg-emerald-500 dark:bg-emerald-600 text-white border border-emerald-400 dark:border-emerald-500 hover:bg-emerald-600 dark:hover:bg-emerald-500 shadow-sm dark:shadow-[0_0_15px_rgba(16,185,129,0.3)] hover:scale-105 active:scale-95' }`}
+                                    >
+                                        <Icon name={isAutoPlaying ? "square" : "play"} className={`w-4 h-4 md:w-5 md:h-5 ${isAutoPlaying ? '' : 'fill-current'}`} />
+                                        <span className="hidden sm:inline">{isAutoPlaying ? '停止' : '自动跟读'}</span>
+                                        <span className="sm:hidden">{isAutoPlaying ? '停止' : '跟读'}</span>
+                                    </button>
+                                    
+                                    <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300 pl-1 pr-2">
+                                        <Icon name="clock" className="w-4 h-4 md:w-5 md:h-5 text-slate-600 dark:text-slate-400 hidden sm:block" />
+                                        <select 
+                                            value={autoPlayInterval}
+                                            onChange={(e) => setAutoPlayInterval(Number(e.target.value))}
+                                            disabled={isAutoPlaying}
+                                            className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-2 md:py-2 outline-none focus:border-emerald-500 cursor-pointer text-xs md:text-sm disabled:opacity-50 appearance-none font-medium"
+                                        >
+                                            <option value={1}>间隔 1 秒</option>
+                                            <option value={2}>间隔 2 秒</option>
+                                            <option value={3}>间隔 3 秒</option>
+                                            <option value={5}>间隔 5 秒</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            )}
+
+                            {currentWord && (
+                                <div className="hidden md:flex items-center gap-2 bg-white/40 dark:bg-slate-800/40 rounded-2xl p-1.5 border border-slate-200/50 dark:border-slate-700/50 shadow-inner ml-4">
+                                    <button
+                                        onClick={() => setCurrentSlide(s => Math.max(0, s - 1))}
+                                        disabled={currentSlide === 0}
+                                        className="px-3 py-2 rounded-xl text-sm font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-700/50 disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
+                                        title="上一页 (←)"
+                                    >
+                                        <Icon name="chevron-left" className="w-4 h-4" />
+                                    </button>
+                                    <div className="px-2 text-sm font-bold text-slate-700 dark:text-slate-300 min-w-[84px] text-center whitespace-nowrap">
+                                        {currentSlide === 0 ? '音形意' : currentSlide === 1 ? 'AI解析' : '例句'}
+                                        <span className="text-slate-500 ml-2">{currentSlide + 1}/3</span>
+                                    </div>
+                                    <button
+                                        onClick={() => setCurrentSlide(s => Math.min(2, s + 1))}
+                                        disabled={currentSlide === 2}
+                                        className="px-3 py-2 rounded-xl text-sm font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-700/50 disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
+                                        title="下一页 (→)"
+                                    >
+                                        <Icon name="chevron-right" className="w-4 h-4" />
+                                    </button>
+                                    {currentSlide !== 0 && (
+                                        <button
+                                            onClick={() => setRevealedSections({ etymology: true, memory: true, usage: true, examples: true })}
+                                            className="px-3 py-2 rounded-xl text-sm font-bold text-emerald-300 hover:bg-emerald-500/10 border border-emerald-500/20 transition-colors"
+                                            title="当前单词：一键解锁全部解析"
+                                        >
+                                            <Icon name="unlock" className="w-4 h-4" />
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+
+                            <div className="flex-1"></div>
+                            
+                            {/* 互动工具栏 */}
+                            <div className="hidden lg:flex items-center gap-3 bg-white/40 dark:bg-slate-800/40 rounded-2xl p-1.5 border border-slate-200/50 dark:border-slate-700/50 mx-4 shadow-inner">
+                                <button 
+                                    onClick={() => setIsWordMasked(!isWordMasked)}
+                                    className={`whitespace-nowrap px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all duration-300 ${isWordMasked ? 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-300 dark:border-indigo-500/50 shadow-sm dark:shadow-[0_0_10px_rgba(99,102,241,0.2)]' : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-700/50 border border-transparent'}`}
+                                >
+                                    <Icon name={isWordMasked ? "eye-off" : "eye"} className="w-4 h-4" /> 遮挡单词
+                                </button>
+                                <button 
+                                    onClick={() => setIsMeaningMasked(!isMeaningMasked)}
+                                    className={`whitespace-nowrap px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all duration-300 ${isMeaningMasked ? 'bg-pink-100 dark:bg-pink-500/20 text-pink-600 dark:text-pink-400 border border-pink-300 dark:border-pink-500/50 shadow-[0_0_10px_rgba(236,72,153,0.1)] dark:shadow-[0_0_10px_rgba(236,72,153,0.2)]' : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-700/50 border border-transparent'}`}
+                                >
+                                    <Icon name={isMeaningMasked ? "eye-off" : "eye"} className="w-4 h-4" /> 遮挡释义
+                                </button>
+                                <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1"></div>
+                                <button 
+                                    onClick={() => setSpeakMode(speakMode === 'normal' ? 'teaching' : 'normal')}
+                                    className={`whitespace-nowrap px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all duration-300 ${speakMode === 'teaching' ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-300 dark:border-amber-500/50 shadow-[0_0_10px_rgba(245,158,11,0.1)] dark:shadow-[0_0_10px_rgba(245,158,11,0.2)]' : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-700/50 border border-transparent'}`}
+                                    title="带读模式：自动读两遍，中间留出跟读时间"
+                                >
+                                    <Icon name={speakMode === 'teaching' ? "mic" : "volume-2"} className="w-4 h-4" /> 
+                                    {speakMode === 'teaching' ? '教学带读' : '普通发音'}
+                                </button>
+                            </div>
+                            
+                            {/* 离线预加载按钮 (针对小屏幕作自适应隐藏文字) */}
+                            {currentUnit && (
+                                <button 
+                                    onClick={generateUnitAI} 
+                                    disabled={isLoading}
+                                    className="whitespace-nowrap px-4 md:px-6 py-2.5 md:py-3 bg-gradient-to-r from-slate-200 to-slate-100 dark:from-slate-700 dark:to-slate-600 hover:from-slate-300 hover:to-slate-200 dark:hover:from-slate-600 dark:hover:to-slate-500 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-500 rounded-full font-bold text-sm flex items-center gap-2 transition-all transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:transform-none shadow-lg ml-3 shrink-0"
+                                    title="批量离线预加载本单元AI"
+                                >
+                                    {isLoading && loadingProgress > 0 ? (
+                                        <><Icon name="loader-2" className="w-5 h-5 animate-spin" /> <span className="hidden lg:inline">预加载 {loadingProgress}%</span></>
+                                    ) : (
+                                        <><Icon name="cloud-download" className="w-5 h-5" /> <span className="hidden lg:inline">预加载AI</span></>
+                                    )}
+                                </button>
+                            )}
+
+                            <button
+                                onClick={() => {
+                                    const next = themeMode === 'system' ? 'light' : (themeMode === 'light' ? 'dark' : 'system');
+                                    setThemeMode(next);
+                                    localStorage.setItem('themeMode', next);
+                                }}
+                                className="ml-3 p-3 bg-white/60 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 hover:border-emerald-500/50 rounded-xl text-slate-700 dark:text-slate-300 hover:text-emerald-300 transition-colors shadow-lg shrink-0"
+                                title={themeMode === 'system' ? '主题：跟随系统' : (themeMode === 'light' ? '主题：日间' : '主题：夜间')}
+                            >
+                                <Icon name={themeMode === 'system' ? 'monitor' : (themeMode === 'light' ? 'sun' : 'moon')} className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* 滚动容器：包裹单词卡和解析卡，让它们自然排布 */}
+                        <div ref={contentRef} className="flex-1 overflow-y-auto px-4 lg:px-12 pb-24 scroll-smooth">
+                            {currentWord ? (
+                                <div className="max-w-7xl mx-auto w-full space-y-8 animate-fade-in-up mt-6" key={currentWord.word}>
+                                    
+                                    {currentSlide === 0 && (
+                                        <div className={`glass-panel rounded-[2.5rem] p-8 lg:p-14 relative overflow-hidden group border-t-2 transition-colors duration-500 ${isAutoPlaying ? 'border-t-emerald-400 shadow-[0_0_30px_rgba(16,185,129,0.15)]' : 'border-t-slate-600'}`}>
+                                        {/* 装饰水印 */}
+                                        <div className="absolute -right-12 -top-12 text-slate-700/20 pointer-events-none transition-transform duration-1000 group-hover:rotate-12 group-hover:scale-110">
+                                            <Icon name="zap" style={{width: '280px', height: '280px'}} />
+                                        </div>
+                                        
+                                        <div className="flex flex-col md:flex-row items-center justify-between gap-10 relative z-10">
+                                            <div className="flex-1 text-center md:text-left w-full">
+                                                <div className="flex flex-wrap items-center justify-center md:justify-start gap-6 mb-4">
+                                                    {/* 炫酷的发光单词标题 (带遮罩逻辑) */}
+                                                    <h1 className={`word-title text-7xl md:text-8xl lg:text-[8rem] text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 via-teal-500 to-cyan-600 dark:from-emerald-300 dark:via-teal-200 dark:to-cyan-300 drop-shadow-sm dark:drop-shadow-[0_0_25px_rgba(52,211,153,0.4)] tracking-tight leading-none pb-2 transition-all duration-500 ${isWordMasked ? 'blur-2xl hover:blur-sm cursor-help opacity-60' : ''}`}>
+                                                        {currentWord.word}
+                                                    </h1>
+                                                    <button 
+                                                        onClick={(e) => { e.stopPropagation(); speakWord(currentWord.word, false); }}
+                                                        className={`p-5 bg-white/80 dark:bg-slate-800/80 border border-emerald-300/50 dark:border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/20 hover:border-emerald-400 dark:hover:border-emerald-400 rounded-full shadow-lg dark:shadow-[0_0_15px_rgba(16,185,129,0.2)] transition-all duration-300 group/btn relative z-10 cursor-pointer ${isAutoPlaying ? 'animate-pulse bg-emerald-100 dark:bg-emerald-900/40' : 'hover:scale-110'}`}
+                                                        title="播放发音"
+                                                    >
+                                                        <Icon name="volume-2" className="w-10 h-10 md:w-12 md:h-12 group-hover/btn:scale-110 transition-transform" />
+                                                    </button>
+                                                </div>
+                                                
+                                                <div className="flex flex-wrap items-center justify-center md:justify-start gap-5 text-2xl md:text-4xl mt-6">
+                                                    <span className="font-mono text-cyan-700 dark:text-cyan-300 bg-cyan-100 dark:bg-cyan-900/30 px-5 py-2 rounded-2xl border border-cyan-300/50 dark:border-cyan-500/30 shadow-inner">
+                                                        {currentWord.phonetic.startsWith('/') ? currentWord.phonetic : `/${currentWord.phonetic}/`}
+                                                    </span>
+                                                    <span className="text-emerald-600 dark:text-emerald-400/80 font-serif italic text-3xl">{currentWord.pos}</span>
+                                                </div>
+                                                
+                                                <div className="mt-10">
+                                                    <h2 className={`text-4xl md:text-5xl lg:text-6xl font-bold text-slate-800 dark:text-slate-100 leading-tight transition-all duration-500 ${isMeaningMasked ? 'blur-xl hover:blur-sm cursor-help opacity-60' : ''}`}>
+                                                        {currentWord.meaning}
+                                                    </h2>
+                                                </div>
+                                            </div>
+
+                                            {/* 专属插图表示 - AI生图与Emoji组合 */}
+                                            {currentWordAI && (
+                                                <div className="w-48 h-48 md:w-64 md:h-64 rounded-[2rem] overflow-hidden shadow-[0_10px_30px_rgba(16,185,129,0.3)] border border-slate-200 dark:border-slate-700 relative group bg-white dark:bg-slate-800 flex-shrink-0 flex items-center justify-center">
+                                                    {/* 真实场景 AI 配图 */}
+                                                    <img 
+                                                        src={generateImageUrl(currentWord.word, currentWord.meaning)} 
+                                                        alt={currentWord.word}
+                                                        className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 z-10"
+                                                        onError={(e) => { e.target.style.opacity = 0; }}
+                                                    />
+                                                    {/* Emoji 作为底层占位或加载失败时的兜底 */}
+                                                    <span className="text-[6rem] md:text-[8rem] drop-shadow-2xl filter transition-transform duration-300 z-0">
+                                                        {currentWordAI.emoji}
+                                                    </span>
+                                                    {/* 右下角小 Emoji 徽章 */}
+                                                    <div className="absolute bottom-3 right-3 bg-slate-50/60 dark:bg-slate-900/60 backdrop-blur-md rounded-2xl p-2 text-3xl shadow-lg border border-slate-300/50 dark:border-slate-600/50 z-20 group-hover:scale-110 transition-transform">
+                                                        {currentWordAI.emoji}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                    )}
+
+                                    {currentSlide === 1 && (
+                                        currentWordAI ? (
+                                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                                                <div className="space-y-8 flex flex-col justify-stretch xl:col-span-2">
+                                                    <div className="relative overflow-hidden glass-panel rounded-3xl p-8 border border-blue-500/20 shadow-[0_8px_30px_rgba(59,130,246,0.05)] hover:border-blue-500/40 transition-colors h-full">
+                                                        <SectionMask sectionName="etymology" title="词源与构词法" iconColorClass="text-blue-400" />
+                                                        <div className="flex items-center gap-4 mb-6 text-blue-400 border-b border-blue-500/20 pb-4">
+                                                            <div className="p-3 bg-blue-500/10 rounded-xl"><Icon name="git-branch" className="w-8 h-8" /></div>
+                                                            <h3 className="text-2xl md:text-3xl font-bold">词源与构词法 <span className="text-slate-500 font-normal text-xl ml-2">Etymology</span></h3>
+                                                        </div>
+                                                        <p className="text-slate-800 dark:text-slate-200 text-2xl md:text-3xl leading-relaxed font-light">{currentWordAI.etymology}</p>
+                                                    </div>
+
+                                                    <div className="relative overflow-hidden glass-panel rounded-3xl p-8 border border-orange-500/20 shadow-[0_8px_30px_rgba(249,115,22,0.05)] hover:border-orange-500/40 transition-colors h-full">
+                                                        <SectionMask sectionName="memory" title="趣味记忆法" iconColorClass="text-orange-400" />
+                                                        <div className="flex items-center gap-4 mb-6 text-orange-400 border-b border-orange-500/20 pb-4">
+                                                            <div className="p-3 bg-orange-500/10 rounded-xl"><Icon name="lightbulb" className="w-8 h-8" /></div>
+                                                            <h3 className="text-2xl md:text-3xl font-bold">趣味记忆法 <span className="text-slate-500 font-normal text-xl ml-2">Memory</span></h3>
+                                                        </div>
+                                                        <p className="text-slate-800 dark:text-slate-200 text-2xl md:text-3xl leading-relaxed font-light">{currentWordAI.memory}</p>
+                                                    </div>
+                                                    
+                                                    <div className="relative overflow-hidden glass-panel rounded-3xl p-8 border border-purple-500/20 shadow-[0_8px_30px_rgba(168,85,247,0.05)] hover:border-purple-500/40 transition-colors h-full">
+                                                        <SectionMask sectionName="usage" title="核心搭配" iconColorClass="text-purple-400" />
+                                                        <div className="flex items-center gap-4 mb-6 text-purple-400 border-b border-purple-500/20 pb-4">
+                                                            <div className="p-3 bg-purple-500/10 rounded-xl"><Icon name="link" className="w-8 h-8" /></div>
+                                                            <h3 className="text-2xl md:text-3xl font-bold">核心搭配 <span className="text-slate-500 font-normal text-xl ml-2">Usage</span></h3>
+                                                        </div>
+                                                        <p className="text-slate-800 dark:text-slate-200 text-2xl md:text-3xl leading-relaxed whitespace-pre-wrap font-light">
+                                                            {typeof currentWordAI.usage === 'string' ? currentWordAI.usage.split(',').map(u => u.trim()).filter(u => u).join(', ') : (Array.isArray(currentWordAI.usage) ? currentWordAI.usage.join(', ') : String(currentWordAI.usage))}
+                                                        </p>
+                                                    </div>
+                                                    <div className="text-center text-sm md:text-base text-slate-500 dark:text-slate-400 font-medium tracking-wide">按 → 查看例句页</div>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="glass-panel rounded-3xl p-16 flex flex-col items-center justify-center text-center border border-dashed border-slate-300 dark:border-slate-600 relative overflow-hidden mt-8">
+                                                {isLoading && (
+                                                    <div className="absolute inset-0 bg-slate-50/50 dark:bg-slate-900/50 backdrop-blur-sm z-10 flex flex-col items-center justify-center">
+                                                        <Icon name="loader-2" className="w-16 h-16 text-emerald-400 animate-spin mb-4" />
+                                                        <h3 className="text-2xl font-bold text-emerald-300 neon-text animate-pulse">AI 脑力激荡中...</h3>
+                                                    </div>
+                                                )}
+                                                <div className="w-32 h-32 bg-white/80 dark:bg-slate-800/80 rounded-full flex items-center justify-center mb-8 shadow-[0_0_30px_rgba(0,0,0,0.5)] border border-slate-200 dark:border-slate-700">
+                                                    <Icon name="cpu" className="w-16 h-16 text-slate-600 dark:text-slate-400" />
+                                                </div>
+                                                <h3 className="text-3xl font-bold text-slate-800 dark:text-slate-200 mb-4">尚未生成 AI 教学图谱</h3>
+                                                <p className="text-xl text-slate-600 dark:text-slate-400 max-w-2xl mb-10 leading-relaxed font-light">可在此页一键生成 AI 解析内容。</p>
+                                                <button 
+                                                    onClick={generateCurrentWordAI}
+                                                    disabled={isLoading}
+                                                    className="px-10 py-5 bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white rounded-full shadow-[0_0_30px_rgba(16,185,129,0.4)] font-bold text-2xl flex items-center gap-4 transition-all transform hover:scale-105 active:scale-95 disabled:opacity-50"
+                                                >
+                                                    <Icon name="sparkles" className="w-8 h-8" /> 智能生成深度解析
+                                                </button>
+                                            </div>
+                                        )
+                                    )}
+
+                                    {currentSlide === 2 && (
+                                        currentWordAI ? (
+                                            <div className="relative overflow-hidden glass-panel rounded-3xl p-8 md:p-10 border border-emerald-500/20 shadow-[0_8px_30px_rgba(16,185,129,0.05)] flex flex-col hover:border-emerald-500/40 transition-colors h-full">
+                                                <SectionMask sectionName="examples" title="情景例句" iconColorClass="text-emerald-400" />
+                                                <div className="flex items-center justify-between mb-8 border-b border-emerald-500/20 pb-4 text-emerald-400">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="p-3 bg-emerald-500/10 rounded-xl"><Icon name="book-open-check" className="w-8 h-8" /></div>
+                                                        <h3 className="text-2xl md:text-3xl font-bold">情景例句 <span className="text-slate-500 font-normal text-xl ml-2">Examples</span></h3>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 bg-emerald-500/10 px-4 py-2 rounded-2xl">
+                                                        <Icon name="gauge" className="w-5 h-5 text-emerald-500 dark:text-emerald-400" />
+                                                        <span className="text-emerald-600 dark:text-emerald-400 font-medium text-base mr-1 hidden sm:inline">句速</span>
+                                                        <select 
+                                                            value={exampleSpeed}
+                                                            onChange={(e) => {
+                                                                const speed = parseFloat(e.target.value);
+                                                                setExampleSpeed(speed);
+                                                                localStorage.setItem('exampleSpeed', speed);
+                                                            }}
+                                                            className="bg-transparent text-emerald-600 dark:text-emerald-400 text-base font-bold outline-none cursor-pointer [&>option]:bg-white dark:[&>option]:bg-slate-800"
+                                                            onClick={(e) => e.stopPropagation()}
+                                                        >
+                                                            <option value="0.75">0.75x</option>
+                                                            <option value="0.9">0.9x</option>
+                                                            <option value="1.0">1.0x</option>
+                                                            <option value="1.25">1.25x</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div className="space-y-10 mt-2">
+                                                    {currentWordAI.examples && currentWordAI.examples.map((ex, idx) => (
+                                                        <div key={idx} className="group relative pl-6 md:pl-8 border-l-4 border-slate-200 dark:border-slate-700 hover:border-emerald-400 transition-colors duration-300">
+                                                            <button 
+                                                                onClick={(e) => { e.stopPropagation(); speakWord(ex.en, true); }}
+                                                                className="absolute -left-7 top-1 md:-left-8 md:-top-2 p-3 md:p-4 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-emerald-400 rounded-full transition-all duration-300 hover:bg-emerald-500/20 hover:border-emerald-400 hover:scale-110 shadow-lg opacity-80 group-hover:opacity-100 z-10 cursor-pointer"
+                                                                title="朗读句子"
+                                                            >
+                                                                <Icon name="play" className="w-5 h-5 md:w-6 md:h-6 fill-current" />
+                                                            </button>
+                                                            <p className="text-3xl md:text-4xl text-slate-900 dark:text-slate-100 font-medium mb-4 leading-snug">{ex.en}</p>
+                                                            <p className="text-xl md:text-2xl text-emerald-200/60 font-light">{ex.zh}</p>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="glass-panel rounded-3xl p-16 flex flex-col items-center justify-center text-center border border-dashed border-slate-300 dark:border-slate-600 relative overflow-hidden mt-8">
+                                                <div className="w-32 h-32 bg-white/80 dark:bg-slate-800/80 rounded-full flex items-center justify-center mb-8 shadow-[0_0_30px_rgba(0,0,0,0.5)] border border-slate-200 dark:border-slate-700">
+                                                    <Icon name="book-open" className="w-16 h-16 text-slate-600 dark:text-slate-400" />
+                                                </div>
+                                                <h3 className="text-3xl font-bold text-slate-800 dark:text-slate-200 mb-4">暂无例句</h3>
+                                                <p className="text-xl text-slate-600 dark:text-slate-400 max-w-2xl mb-10 leading-relaxed font-light">请先在 AI 解析页生成内容。</p>
+                                                <button 
+                                                    onClick={() => setCurrentSlide(1)}
+                                                    className="px-10 py-5 bg-slate-600 dark:bg-slate-700 hover:bg-slate-700 dark:hover:bg-slate-600 text-white rounded-full shadow-lg font-bold text-2xl flex items-center gap-4 transition-all transform hover:scale-105 active:scale-95"
+                                                >
+                                                    <Icon name="arrow-left" className="w-8 h-8" /> 返回 AI 解析页
+                                                </button>
+                                            </div>
+                                        )
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="h-full flex items-center justify-center text-slate-500 text-2xl font-light">
+                                    <Icon name="inbox" className="w-12 h-12 mr-4 opacity-50" /> 正在加载词库...
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* 设置弹窗 */}
+                    {showSettings && (
+                        <div className="fixed inset-0 bg-black/50 dark:bg-slate-900/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+                            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-[2rem] shadow-[0_0_50px_rgba(0,0,0,0.1)] dark:shadow-[0_0_50px_rgba(0,0,0,0.5)] w-full max-w-lg overflow-hidden animate-fade-in-up flex flex-col max-h-[90vh]">
+                                <div className="px-8 py-6 border-b border-slate-100 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-800/50 flex justify-between items-center shrink-0">
+                                    <h3 className="text-2xl font-bold flex items-center gap-3 text-slate-800 dark:text-slate-100"><Icon name="settings" className="text-emerald-500" /> 系统核心设置</h3>
+                                    <button 
+                                        onClick={() => setShowSettings(false)} 
+                                        className="text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors bg-slate-200/50 dark:bg-slate-700/50 p-2 rounded-full relative z-10 w-10 h-10 flex items-center justify-center cursor-pointer"
+                                    >
+                                        <Icon name="x" className="w-6 h-6" />
+                                    </button>
+                                </div>
+                                <div className="p-8 space-y-6 overflow-y-auto hide-scrollbar bg-slate-50 dark:bg-slate-800 flex-1">
+                                    <div className="bg-white dark:bg-slate-900/50 p-6 rounded-2xl border border-slate-200 dark:border-slate-700/50 space-y-5 shadow-sm dark:shadow-none">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <Icon name="bot" className="w-5 h-5 text-cyan-500 dark:text-cyan-400" />
+                                            <h4 className="text-lg font-bold text-slate-800 dark:text-slate-200">AI 教学内容生成配置</h4>
+                                        </div>
+                                        
+                                        <div>
+                                            <label className="block text-sm font-bold text-slate-600 dark:text-slate-300 mb-2 uppercase tracking-wider">AI 服务商 (Provider)</label>
+                                            <div className="relative">
+                                                <select 
+                                                    value={aiProvider} 
+                                                    onChange={(e) => {
+                                                        const p = e.target.value;
+                                                        setAiProvider(p);
+                                                        setAvailableModels([]); // 切换服务商时清空已拉取的模型列表
+                                                        setFetchModelSuccess(false);
+                                                        
+                                                        // 自动设置常见服务商的默认 Base URL 和模型
+                                                        if (p === 'deepseek') { setCustomApiUrl('https://api.deepseek.com/v1'); setAiModel('deepseek-chat'); }
+                                                        else if (p === 'openai') { setCustomApiUrl('https://api.openai.com/v1'); setAiModel('gpt-3.5-turbo'); }
+                                                        else if (p === 'anthropic') { setCustomApiUrl('https://api.anthropic.com/v1'); setAiModel('claude-3-haiku-20240307'); }
+                                                        else if (p === 'google') { setCustomApiUrl('https://generativelanguage.googleapis.com/v1beta/openai'); setAiModel('gemini-1.5-flash'); }
+                                                        else if (p === 'moonshot') { setCustomApiUrl('https://api.moonshot.cn/v1'); setAiModel('moonshot-v1-8k'); }
+                                                        else if (p === 'alibaba') { setCustomApiUrl('https://dashscope.aliyuncs.com/compatible-mode/v1'); setAiModel('qwen-plus'); }
+                                                        else if (p === 'zhipu') { setCustomApiUrl('https://open.bigmodel.cn/api/paas/v4'); setAiModel('glm-4-flash'); }
+                                                        else if (p === 'doubao') { setCustomApiUrl('https://ark.cn-beijing.volces.com/api/v3'); setAiModel('ep-xxx-xxx'); } // 豆包通常需要具体的接入点ID
+                                                        else if (p === 'baidu') { setCustomApiUrl('https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop'); setAiModel('ernie-4.0-8k'); }
+                                                        else if (p === 'tencent') { setCustomApiUrl('https://api.hunyuan.cloud.tencent.com/v1'); setAiModel('hunyuan-pro'); }
+                                                        else if (p === 'minimax') { setCustomApiUrl('https://api.minimax.chat/v1'); setAiModel('abab6.5-chat'); }
+                                                        else if (p === 'stepfun') { setCustomApiUrl('https://api.stepfun.com/v1'); setAiModel('step-1-8k'); }
+                                                        else if (p === 'lingyi') { setCustomApiUrl('https://api.lingyiwanwu.com/v1'); setAiModel('yi-large'); }
+                                                        else if (p === 'siliconflow') { setCustomApiUrl('https://api.siliconflow.cn/v1'); setAiModel('deepseek-ai/DeepSeek-V3'); }
+                                                    }}
+                                                    className="w-full px-5 py-4 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all text-slate-800 dark:text-slate-200 appearance-none cursor-pointer"
+                                                >
+                                                    <option value="deepseek">DeepSeek (深度求索)</option>
+                                                    <option value="openai">OpenAI (国际版)</option>
+                                                    <option value="anthropic">Anthropic (Claude)</option>
+                                                    <option value="google">Google Gemini</option>
+                                                    <option value="moonshot">Moonshot AI (Kimi)</option>
+                                                    <option value="alibaba">Alibaba Qwen (通义千问)</option>
+                                                    <option value="zhipu">Zhipu GLM (智谱清言)</option>
+                                                    <option value="doubao">Doubao (豆包)</option>
+                                                    <option value="baidu">Baidu (文心一言)</option>
+                                                    <option value="tencent">Tencent (腾讯混元)</option>
+                                                    <option value="minimax">MiniMax (海螺AI)</option>
+                                                    <option value="stepfun">StepFun (阶跃星辰)</option>
+                                                    <option value="lingyi">01.AI (零一万物)</option>
+                                                    <option value="siliconflow">SiliconFlow (硅基流动)</option>
+                                                    <option value="custom">自定义接口 (OpenAI 兼容)</option>
+                                                </select>
+                                                <Icon name="chevron-down" className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-600 dark:text-slate-400 dark:text-slate-500 pointer-events-none" />
+                                            </div>
+                                        </div>
+
+                                        <div className="animate-fade-in-up">
+                                            <label className="block text-sm font-bold text-slate-600 dark:text-slate-300 mb-2 uppercase tracking-wider">接口地址 (Base URL)</label>
+                                            <input 
+                                                type="text" 
+                                                value={customApiUrl} 
+                                                onChange={(e) => setCustomApiUrl(e.target.value)}
+                                                className="w-full px-5 py-4 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all text-slate-800 dark:text-slate-200 font-mono text-sm"
+                                                placeholder="例如: https://api.deepseek.com/v1"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <div className="flex items-center justify-between mb-2">
+                                                <label className="block text-sm font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">API 密钥 (API Key)</label>
+                                                <button 
+                                                    onClick={async () => {
+                                                        if(!apiKey || !customApiUrl) return alert("请先填写API Key和接口地址");
+                                                        setIsTestingApi(true);
+                                                        try {
+                                                            const res = await fetch(`${customApiUrl}/chat/completions`, {
+                                                                method: 'POST',
+                                                                headers: {
+                                                                    'Content-Type': 'application/json',
+                                                                    'Authorization': `Bearer ${apiKey}`
+                                                                },
+                                                                body: JSON.stringify({
+                                                                    model: aiModel || 'deepseek-chat',
+                                                                    messages: [{ role: 'user', content: 'hi' }],
+                                                                    max_tokens: 5
+                                                                })
+                                                            });
+                                                            if(res.ok) {
+                                                                alert("✅ 连接成功！API 配置正确。");
+                                                            } else {
+                                                                const errText = await res.text();
+                                                                alert(`❌ 连接失败：HTTP ${res.status}\n${errText.substring(0, 100)}...`);
+                                                            }
+                                                        } catch(e) {
+                                                            alert("❌ 连接异常：" + e.message);
+                                                        } finally {
+                                                            setIsTestingApi(false);
+                                                        }
+                                                    }}
+                                                    disabled={isTestingApi}
+                                                    className="text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-500/10 hover:bg-blue-200 dark:hover:bg-blue-500/20 px-3 py-1 rounded-full transition-colors flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                                                >
+                                                    <Icon name={isTestingApi ? "loader-2" : "zap"} className={`w-3 h-3 ${isTestingApi ? "animate-spin" : ""}`} /> 
+                                                    {isTestingApi ? "测试中..." : "测试连接"}
+                                                </button>
+                                            </div>
+                                            <input 
+                                                type="password" 
+                                                value={apiKey} 
+                                                onChange={(e) => setApiKey(e.target.value)}
+                                                className="w-full px-5 py-4 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all text-slate-800 dark:text-slate-200 font-mono"
+                                                placeholder="sk-..."
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <div className="flex items-center justify-between mb-2">
+                                                <label className="block text-sm font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">模型名称 (Model)</label>
+                                                <button 
+                                                    onClick={async () => {
+                                                        if(!apiKey || !customApiUrl) return alert("请先填写API Key和接口地址");
+                                                        setIsFetchingModels(true);
+                                                        setFetchModelSuccess(false);
+                                                        try {
+                                                            const res = await fetch(`${customApiUrl}/models`, { headers: { 'Authorization': `Bearer ${apiKey}` } });
+                                                            const data = await res.json();
+                                                            if(data.data && data.data.length > 0) {
+                                                                const models = data.data.map(m => m.id);
+                                                                setAvailableModels(models);
+                                                                if (!models.includes(aiModel)) {
+                                                                    setAiModel(models[0]);
+                                                                }
+                                                                setFetchModelSuccess(true);
+                                                            } else {
+                                                                alert("未能获取到模型列表，可能是该服务商不支持此接口。");
+                                                            }
+                                                        } catch(e) {
+                                                            alert("拉取失败：" + e.message);
+                                                        } finally {
+                                                            setIsFetchingModels(false);
+                                                        }
+                                                    }}
+                                                    disabled={isFetchingModels}
+                                                    className={`text-xs font-bold px-3 py-1 rounded-full transition-colors flex items-center gap-1 cursor-pointer disabled:opacity-50 ${fetchModelSuccess ? 'text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-500/10' : 'text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-500/10 hover:bg-emerald-200 dark:hover:bg-emerald-500/20'}`}
+                                                >
+                                                    {isFetchingModels ? (
+                                                        <><Icon name="loader-2" className="w-3 h-3 animate-spin" /> 拉取中...</>
+                                                    ) : fetchModelSuccess ? (
+                                                        <><Icon name="check" className="w-3 h-3" /> 已拉取</>
+                                                    ) : (
+                                                        <><Icon name="refresh-cw" className="w-3 h-3" /> 拉取模型列表</>
+                                                    )}
+                                                </button>
+                                            </div>
+                                            {availableModels.length > 0 ? (
+                                                <div className="relative">
+                                                    <select 
+                                                        value={aiModel} 
+                                                        onChange={(e) => setAiModel(e.target.value)}
+                                                        className="w-full px-5 py-4 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all text-slate-800 dark:text-slate-200 appearance-none cursor-pointer font-mono text-sm"
+                                                    >
+                                                        {availableModels.map(m => <option key={m} value={m}>{m}</option>)}
+                                                    </select>
+                                                    <Icon name="chevron-down" className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" />
+                                                </div>
+                                            ) : (
+                                                <input 
+                                                    type="text" 
+                                                    value={aiModel} 
+                                                    onChange={(e) => setAiModel(e.target.value)}
+                                                    className="w-full px-5 py-4 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all text-slate-800 dark:text-slate-200 font-mono text-sm"
+                                                    placeholder="例如: deepseek-chat 或 gpt-4"
+                                                />
+                                            )}
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-bold text-slate-600 dark:text-slate-300 mb-2 uppercase tracking-wider">AI 生成详略模式</label>
+                                            <div className="grid grid-cols-3 gap-3">
+                                                <button
+                                                    onClick={() => { setAiDetailMode('simple'); localStorage.setItem('aiDetailMode', 'simple'); }}
+                                                    className={`py-3 px-4 rounded-xl border text-sm font-medium transition-all ${aiDetailMode === 'simple' ? 'bg-cyan-500 text-white border-cyan-500 shadow-md shadow-cyan-500/20' : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+                                                >
+                                                    精简 (2句)
+                                                </button>
+                                                <button
+                                                    onClick={() => { setAiDetailMode('normal'); localStorage.setItem('aiDetailMode', 'normal'); }}
+                                                    className={`py-3 px-4 rounded-xl border text-sm font-medium transition-all ${aiDetailMode === 'normal' ? 'bg-cyan-500 text-white border-cyan-500 shadow-md shadow-cyan-500/20' : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+                                                >
+                                                    标准 (3句)
+                                                </button>
+                                                <button
+                                                    onClick={() => { setAiDetailMode('detailed'); localStorage.setItem('aiDetailMode', 'detailed'); }}
+                                                    className={`py-3 px-4 rounded-xl border text-sm font-medium transition-all ${aiDetailMode === 'detailed' ? 'bg-cyan-500 text-white border-cyan-500 shadow-md shadow-cyan-500/20' : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+                                                >
+                                                    详细 (4句)
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white dark:bg-slate-900/50 p-6 rounded-2xl border border-slate-200 dark:border-slate-700/50 space-y-5 shadow-sm dark:shadow-none">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <Icon name="volume-2" className="w-5 h-5 text-amber-500 dark:text-amber-400" />
+                                            <h4 className="text-lg font-bold text-slate-800 dark:text-slate-200">发音与语音配置</h4>
+                                        </div>
+                                        
+                                        <div>
+                                            <label className="block text-sm font-bold text-slate-600 dark:text-slate-300 mb-2 uppercase tracking-wider">发音人选择 (系统自带兜底 TTS)</label>
+                                            <div className="relative">
+                                                <select 
+                                                    value={selectedVoiceURI} 
+                                                    onChange={handleVoiceChange}
+                                                    className="w-full px-5 py-4 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all text-slate-800 dark:text-slate-200 appearance-none cursor-pointer"
+                                                >
+                                                    {voices.length === 0 && <option value="">加载中或无可用的语音...</option>}
+                                                    {voices.map(v => (
+                                                        <option key={v.voiceURI} value={v.voiceURI}>{v.name} ({v.lang})</option>
+                                                    ))}
+                                                </select>
+                                                <Icon name="chevron-down" className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-600 dark:text-slate-400 dark:text-slate-500 pointer-events-none" />
+                                            </div>
+                                        </div>
+                                        
+                                        <div>
+                                            <label className="block text-sm font-bold text-slate-600 dark:text-slate-300 mb-2 uppercase tracking-wider flex justify-between">
+                                                <span>在线高质量 TTS 服务地址 (选填)</span>
+                                                <span className="text-emerald-600 dark:text-emerald-400 font-normal text-xs lowercase">推荐填写</span>
+                                            </label>
+                                            <input 
+                                                type="text" 
+                                                value={ttsEndpoint} 
+                                                onChange={(e) => setTtsEndpoint(e.target.value)}
+                                                className="w-full px-5 py-4 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all text-slate-800 dark:text-slate-200 font-mono text-sm"
+                                                placeholder="填入完整URL，例如: http://192.168.x.x:5000/tts"
+                                            />
+                                            <div className="mt-3 text-xs text-slate-500 dark:text-slate-400 leading-relaxed bg-slate-50 dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
+                                                <p className="mb-1"><strong className="text-slate-700 dark:text-slate-300">什么是 TTS 服务？</strong> 这是一段为您准备的音频服务接口。当您填入有效地址后，程序发音会极其清晰自然。</p>
+                                                <p className="mb-1"><strong className="text-slate-700 dark:text-slate-300">可用参考接口格式 (需自行搭建或购买代理)：</strong></p>
+                                                <ul className="list-disc pl-4 space-y-1 text-slate-600 dark:text-slate-500 font-mono">
+                                                    <li>Edge-TTS 接口: <span className="text-slate-800 dark:text-slate-300">http://localhost:5000/api/tts</span></li>
+                                                    <li>Azure TTS 接口: <span className="text-slate-800 dark:text-slate-300">https://your-azure-proxy.com/v1/audio/speech</span></li>
+                                                    <li>自定义局域网: <span className="text-slate-800 dark:text-slate-300">http://192.168.1.100:8080/synthesize</span></li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="px-8 py-5 border-t border-slate-100 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-800/50 flex justify-between items-center shrink-0">
+                                    <button 
+                                        onClick={() => {
+                                            if(confirm("警告：清空缓存将删除您手动导入的词表和生成的AI解析，恢复到默认初始状态。确定继续吗？")) {
+                                                localStorage.removeItem('aiWordCache');
+                                                localStorage.removeItem('vocabularyData');
+                                                setAiCache({});
+                                                const prebuilt = window.__VOCAB__;
+                                                setWords((Array.isArray(prebuilt) && prebuilt.length > 0) ? prebuilt : parseCSV(defaultDataText));
+                                                alert("缓存已清空，系统已恢复默认状态。");
+                                            }
+                                        }}
+                                        className="text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 text-sm font-bold px-4 py-2 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
+                                    >
+                                        <Icon name="trash-2" className="w-4 h-4 inline mr-1" /> 清除离线缓存
+                                    </button>
+                                    <button 
+                                        onClick={() => {
+                                            localStorage.setItem('deepseekApiKey', apiKey);
+                                            localStorage.setItem('aiProvider', aiProvider);
+                                            localStorage.setItem('customApiUrl', customApiUrl);
+                                            localStorage.setItem('aiModel', aiModel);
+                                            localStorage.setItem('ttsEndpoint', ttsEndpoint);
+                                            setShowSettings(false);
+                                        }}
+                                        className="px-8 py-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-500 font-bold transition-all shadow-md hover:shadow-lg dark:shadow-[0_0_15px_rgba(16,185,129,0.3)] dark:hover:shadow-[0_0_25px_rgba(16,185,129,0.5)] cursor-pointer"
+                                    >
+                                        保存并闭合
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+
+</html>

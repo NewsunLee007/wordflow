@@ -1,0 +1,6 @@
+.trae/
+.DS_Store
+data/prebuild_failures.json
+scripts/test_split.py
+transform_theme.py
+transform_theme2.py
