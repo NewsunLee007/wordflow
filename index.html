@@ -70,6 +70,14 @@
             overflow: hidden;
         }
 
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
         /* 酷炫的自定义滚动条 */
         ::-webkit-scrollbar {
             width: 8px;
@@ -730,10 +738,10 @@
                                         
                                         <div className="flex-1 truncate pl-1">
                                             <div className={`font-bold text-xl mb-1 ${isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-300 group-hover:text-emerald-600 dark:group-hover:text-emerald-300 transition-colors'}`}>
-                                                {w.word}
+                                                {isWordMasked ? '***' : w.word}
                                             </div>
                                             <div className={`text-sm truncate pr-2 ${isActive ? 'text-cyan-700 dark:text-cyan-200/80' : 'text-slate-500 dark:text-slate-500'}`}>
-                                                {w.meaning}
+                                                {isMeaningMasked ? '***' : w.meaning}
                                             </div>
                                         </div>
                                         {hasAI && (
@@ -786,15 +794,15 @@
                     {/* 右侧主内容区 */}
                     <div className="flex-1 flex flex-col h-full relative z-10">
                         
-                        {/* 顶栏控制 - 增加了跟读中控台 */}
-                        <div className="h-24 md:h-20 flex items-center justify-between px-4 lg:px-12 shrink-0 border-b border-slate-200/30 dark:border-slate-700/30 bg-white/20 dark:bg-slate-800/20">
-                            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-3 bg-white/80 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 hover:border-emerald-500 rounded-xl shadow-lg md:hidden text-slate-700 dark:text-slate-300 transition-colors mr-3 shrink-0">
+                        {/* 顶栏控制 - 增加了水平滚动适配移动端 */}
+                        <div className="h-20 md:h-20 flex items-center justify-start md:justify-between px-4 lg:px-12 shrink-0 border-b border-slate-200/30 dark:border-slate-700/30 bg-white/20 dark:bg-slate-800/20 overflow-x-auto hide-scrollbar gap-3">
+                            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-3 bg-white/80 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 hover:border-emerald-500 rounded-xl shadow-lg md:hidden text-slate-700 dark:text-slate-300 transition-colors shrink-0">
                                 <Icon name="menu" className="w-6 h-6" />
                             </button>
                             
                             {/* 自动跟读控制台 */}
                             {currentWord && (
-                                <div className="flex items-center gap-2 md:gap-4 bg-white/60 dark:bg-slate-800/60 rounded-2xl p-2 border border-slate-200 dark:border-slate-700 shadow-inner">
+                                <div className="flex items-center gap-2 md:gap-4 bg-white/60 dark:bg-slate-800/60 rounded-2xl p-2 border border-slate-200 dark:border-slate-700 shadow-inner shrink-0">
                                     <button 
                                         onClick={() => setIsAutoPlaying(!isAutoPlaying)}
                                         className={`whitespace-nowrap px-4 md:px-6 py-2.5 rounded-xl font-bold text-sm md:text-base flex items-center gap-2 transition-all duration-300 shadow-lg ${ isAutoPlaying ? 'bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400 border border-red-300 dark:border-red-500/50 shadow-sm dark:shadow-[0_0_15px_rgba(239,68,68,0.2)] hover:bg-red-200 dark:hover:bg-red-500/30' : 'bg-emerald-500 dark:bg-emerald-600 text-white border border-emerald-400 dark:border-emerald-500 hover:bg-emerald-600 dark:hover:bg-emerald-500 shadow-sm dark:shadow-[0_0_15px_rgba(16,185,129,0.3)] hover:scale-105 active:scale-95' }`}
@@ -822,7 +830,7 @@
                             )}
 
                             {currentWord && (
-                                <div className="hidden md:flex items-center gap-2 bg-white/40 dark:bg-slate-800/40 rounded-2xl p-1.5 border border-slate-200/50 dark:border-slate-700/50 shadow-inner ml-4">
+                                <div className="flex shrink-0 items-center gap-2 bg-white/40 dark:bg-slate-800/40 rounded-2xl p-1.5 border border-slate-200/50 dark:border-slate-700/50 shadow-inner">
                                     <button
                                         onClick={() => setCurrentSlide(s => Math.max(0, s - 1))}
                                         disabled={currentSlide === 0}
@@ -855,26 +863,26 @@
                                 </div>
                             )}
 
-                            <div className="flex-1"></div>
+                            <div className="hidden md:block flex-1 min-w-[1rem]"></div>
                             
                             {/* 互动工具栏 */}
-                            <div className="hidden lg:flex items-center gap-3 bg-white/40 dark:bg-slate-800/40 rounded-2xl p-1.5 border border-slate-200/50 dark:border-slate-700/50 mx-4 shadow-inner">
+                            <div className="flex shrink-0 items-center gap-2 md:gap-3 bg-white/40 dark:bg-slate-800/40 rounded-2xl p-1.5 border border-slate-200/50 dark:border-slate-700/50 shadow-inner">
                                 <button 
                                     onClick={() => setIsWordMasked(!isWordMasked)}
-                                    className={`whitespace-nowrap px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all duration-300 ${isWordMasked ? 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-300 dark:border-indigo-500/50 shadow-sm dark:shadow-[0_0_10px_rgba(99,102,241,0.2)]' : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-700/50 border border-transparent'}`}
+                                    className={`whitespace-nowrap px-3 md:px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all duration-300 ${isWordMasked ? 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-300 dark:border-indigo-500/50 shadow-sm dark:shadow-[0_0_10px_rgba(99,102,241,0.2)]' : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-700/50 border border-transparent'}`}
                                 >
                                     <Icon name={isWordMasked ? "eye-off" : "eye"} className="w-4 h-4" /> 遮挡单词
                                 </button>
                                 <button 
                                     onClick={() => setIsMeaningMasked(!isMeaningMasked)}
-                                    className={`whitespace-nowrap px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all duration-300 ${isMeaningMasked ? 'bg-pink-100 dark:bg-pink-500/20 text-pink-600 dark:text-pink-400 border border-pink-300 dark:border-pink-500/50 shadow-[0_0_10px_rgba(236,72,153,0.1)] dark:shadow-[0_0_10px_rgba(236,72,153,0.2)]' : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-700/50 border border-transparent'}`}
+                                    className={`whitespace-nowrap px-3 md:px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all duration-300 ${isMeaningMasked ? 'bg-pink-100 dark:bg-pink-500/20 text-pink-600 dark:text-pink-400 border border-pink-300 dark:border-pink-500/50 shadow-[0_0_10px_rgba(236,72,153,0.1)] dark:shadow-[0_0_10px_rgba(236,72,153,0.2)]' : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-700/50 border border-transparent'}`}
                                 >
                                     <Icon name={isMeaningMasked ? "eye-off" : "eye"} className="w-4 h-4" /> 遮挡释义
                                 </button>
-                                <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1"></div>
+                                <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-0.5 md:mx-1"></div>
                                 <button 
                                     onClick={() => setSpeakMode(speakMode === 'normal' ? 'teaching' : 'normal')}
-                                    className={`whitespace-nowrap px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all duration-300 ${speakMode === 'teaching' ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-300 dark:border-amber-500/50 shadow-[0_0_10px_rgba(245,158,11,0.1)] dark:shadow-[0_0_10px_rgba(245,158,11,0.2)]' : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-700/50 border border-transparent'}`}
+                                    className={`whitespace-nowrap px-3 md:px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all duration-300 ${speakMode === 'teaching' ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-300 dark:border-amber-500/50 shadow-[0_0_10px_rgba(245,158,11,0.1)] dark:shadow-[0_0_10px_rgba(245,158,11,0.2)]' : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-700/50 border border-transparent'}`}
                                     title="带读模式：自动读两遍，中间留出跟读时间"
                                 >
                                     <Icon name={speakMode === 'teaching' ? "mic" : "volume-2"} className="w-4 h-4" /> 
@@ -882,18 +890,18 @@
                                 </button>
                             </div>
                             
-                            {/* 离线预加载按钮 (针对小屏幕作自适应隐藏文字) */}
+                            {/* 离线预加载按钮 */}
                             {currentUnit && (
                                 <button 
                                     onClick={generateUnitAI} 
                                     disabled={isLoading}
-                                    className="whitespace-nowrap px-4 md:px-6 py-2.5 md:py-3 bg-gradient-to-r from-slate-200 to-slate-100 dark:from-slate-700 dark:to-slate-600 hover:from-slate-300 hover:to-slate-200 dark:hover:from-slate-600 dark:hover:to-slate-500 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-500 rounded-full font-bold text-sm flex items-center gap-2 transition-all transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:transform-none shadow-lg ml-3 shrink-0"
+                                    className="shrink-0 whitespace-nowrap px-4 py-2.5 md:py-3 bg-gradient-to-r from-slate-200 to-slate-100 dark:from-slate-700 dark:to-slate-600 hover:from-slate-300 hover:to-slate-200 dark:hover:from-slate-600 dark:hover:to-slate-500 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-500 rounded-full font-bold text-sm flex items-center gap-2 transition-all shadow-lg"
                                     title="批量离线预加载本单元AI"
                                 >
                                     {isLoading && loadingProgress > 0 ? (
-                                        <><Icon name="loader-2" className="w-5 h-5 animate-spin" /> <span className="hidden lg:inline">预加载 {loadingProgress}%</span></>
+                                        <><Icon name="loader-2" className="w-4 h-4 animate-spin" /> <span className="hidden sm:inline">预加载 {loadingProgress}%</span></>
                                     ) : (
-                                        <><Icon name="cloud-download" className="w-5 h-5" /> <span className="hidden lg:inline">预加载AI</span></>
+                                        <><Icon name="cloud-download" className="w-4 h-4" /> <span className="hidden sm:inline">预加载AI</span></>
                                     )}
                                 </button>
                             )}
@@ -904,7 +912,7 @@
                                     setThemeMode(next);
                                     localStorage.setItem('themeMode', next);
                                 }}
-                                className="ml-3 p-3 bg-white/60 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 hover:border-emerald-500/50 rounded-xl text-slate-700 dark:text-slate-300 hover:text-emerald-300 transition-colors shadow-lg shrink-0"
+                                className="shrink-0 p-3 bg-white/60 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 hover:border-emerald-500/50 rounded-xl text-slate-700 dark:text-slate-300 hover:text-emerald-300 transition-colors shadow-lg"
                                 title={themeMode === 'system' ? '主题：跟随系统' : (themeMode === 'light' ? '主题：日间' : '主题：夜间')}
                             >
                                 <Icon name={themeMode === 'system' ? 'monitor' : (themeMode === 'light' ? 'sun' : 'moon')} className="w-5 h-5" />
@@ -917,37 +925,37 @@
                                 <div className="max-w-7xl mx-auto w-full space-y-8 animate-fade-in-up mt-6" key={currentWord.word}>
                                     
                                     {currentSlide === 0 && (
-                                        <div className={`glass-panel rounded-[2.5rem] p-8 lg:p-14 relative overflow-hidden group border-t-2 transition-colors duration-500 ${isAutoPlaying ? 'border-t-emerald-400 shadow-[0_0_30px_rgba(16,185,129,0.15)]' : 'border-t-slate-600'}`}>
+                                        <div className={`glass-panel rounded-[2.5rem] p-6 md:p-8 lg:p-14 relative overflow-hidden group border-t-2 transition-colors duration-500 ${isAutoPlaying ? 'border-t-emerald-400 shadow-[0_0_30px_rgba(16,185,129,0.15)]' : 'border-t-slate-600'}`}>
                                         {/* 装饰水印 */}
                                         <div className="absolute -right-12 -top-12 text-slate-700/20 pointer-events-none transition-transform duration-1000 group-hover:rotate-12 group-hover:scale-110">
                                             <Icon name="zap" style={{width: '280px', height: '280px'}} />
                                         </div>
                                         
-                                        <div className="flex flex-col md:flex-row items-center justify-between gap-10 relative z-10">
+                                        <div className="flex flex-col md:flex-row items-center justify-between gap-8 md:gap-10 relative z-10">
                                             <div className="flex-1 text-center md:text-left w-full">
-                                                <div className="flex flex-wrap items-center justify-center md:justify-start gap-6 mb-4">
+                                                <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 md:gap-6 mb-4">
                                                     {/* 炫酷的发光单词标题 (带遮罩逻辑) */}
-                                                    <h1 className={`word-title text-7xl md:text-8xl lg:text-[8rem] text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 via-teal-500 to-cyan-600 dark:from-emerald-300 dark:via-teal-200 dark:to-cyan-300 drop-shadow-sm dark:drop-shadow-[0_0_25px_rgba(52,211,153,0.4)] tracking-tight leading-none pb-2 transition-all duration-500 ${isWordMasked ? 'blur-2xl hover:blur-sm cursor-help opacity-60' : ''}`}>
+                                                    <h1 className={`word-title text-5xl sm:text-6xl md:text-7xl lg:text-[8rem] text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 via-teal-500 to-cyan-600 dark:from-emerald-300 dark:via-teal-200 dark:to-cyan-300 drop-shadow-sm dark:drop-shadow-[0_0_25px_rgba(52,211,153,0.4)] tracking-tight leading-none pb-2 transition-all duration-500 ${isWordMasked ? 'blur-2xl hover:blur-sm cursor-help opacity-60' : ''}`}>
                                                         {currentWord.word}
                                                     </h1>
                                                     <button 
                                                         onClick={(e) => { e.stopPropagation(); speakWord(currentWord.word, false); }}
-                                                        className={`p-5 bg-white/80 dark:bg-slate-800/80 border border-emerald-300/50 dark:border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/20 hover:border-emerald-400 dark:hover:border-emerald-400 rounded-full shadow-lg dark:shadow-[0_0_15px_rgba(16,185,129,0.2)] transition-all duration-300 group/btn relative z-10 cursor-pointer ${isAutoPlaying ? 'animate-pulse bg-emerald-100 dark:bg-emerald-900/40' : 'hover:scale-110'}`}
+                                                        className={`p-4 md:p-5 bg-white/80 dark:bg-slate-800/80 border border-emerald-300/50 dark:border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/20 hover:border-emerald-400 dark:hover:border-emerald-400 rounded-full shadow-lg dark:shadow-[0_0_15px_rgba(16,185,129,0.2)] transition-all duration-300 group/btn relative z-10 cursor-pointer ${isAutoPlaying ? 'animate-pulse bg-emerald-100 dark:bg-emerald-900/40' : 'hover:scale-110'}`}
                                                         title="播放发音"
                                                     >
-                                                        <Icon name="volume-2" className="w-10 h-10 md:w-12 md:h-12 group-hover/btn:scale-110 transition-transform" />
+                                                        <Icon name="volume-2" className="w-8 h-8 md:w-12 md:h-12 group-hover/btn:scale-110 transition-transform" />
                                                     </button>
                                                 </div>
                                                 
-                                                <div className="flex flex-wrap items-center justify-center md:justify-start gap-5 text-2xl md:text-4xl mt-6">
-                                                    <span className="font-mono text-cyan-700 dark:text-cyan-300 bg-cyan-100 dark:bg-cyan-900/30 px-5 py-2 rounded-2xl border border-cyan-300/50 dark:border-cyan-500/30 shadow-inner">
+                                                <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 md:gap-5 text-xl md:text-4xl mt-4 md:mt-6">
+                                                    <span className="font-mono text-cyan-700 dark:text-cyan-300 bg-cyan-100 dark:bg-cyan-900/30 px-4 md:px-5 py-2 rounded-2xl border border-cyan-300/50 dark:border-cyan-500/30 shadow-inner">
                                                         {currentWord.phonetic.startsWith('/') ? currentWord.phonetic : `/${currentWord.phonetic}/`}
                                                     </span>
-                                                    <span className="text-emerald-600 dark:text-emerald-400/80 font-serif italic text-3xl">{currentWord.pos}</span>
+                                                    <span className="text-emerald-600 dark:text-emerald-400/80 font-serif italic text-2xl md:text-3xl">{currentWord.pos}</span>
                                                 </div>
                                                 
-                                                <div className="mt-10">
-                                                    <h2 className={`text-4xl md:text-5xl lg:text-6xl font-bold text-slate-800 dark:text-slate-100 leading-tight transition-all duration-500 ${isMeaningMasked ? 'blur-xl hover:blur-sm cursor-help opacity-60' : ''}`}>
+                                                <div className="mt-8 md:mt-10">
+                                                    <h2 className={`text-3xl md:text-5xl lg:text-6xl font-bold text-slate-800 dark:text-slate-100 leading-tight transition-all duration-500 ${isMeaningMasked ? 'blur-xl hover:blur-sm cursor-help opacity-60' : ''}`}>
                                                         {currentWord.meaning}
                                                     </h2>
                                                 </div>
@@ -981,31 +989,31 @@
                                         currentWordAI ? (
                                             <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
                                                 <div className="space-y-8 flex flex-col justify-stretch xl:col-span-2">
-                                                    <div className="relative overflow-hidden glass-panel rounded-3xl p-8 border border-blue-500/20 shadow-[0_8px_30px_rgba(59,130,246,0.05)] hover:border-blue-500/40 transition-colors h-full">
+                                                    <div className="relative overflow-hidden glass-panel rounded-3xl p-6 md:p-8 border border-blue-500/20 shadow-[0_8px_30px_rgba(59,130,246,0.05)] hover:border-blue-500/40 transition-colors h-full">
                                                         <SectionMask sectionName="etymology" title="词源与构词法" iconColorClass="text-blue-400" />
                                                         <div className="flex items-center gap-4 mb-6 text-blue-400 border-b border-blue-500/20 pb-4">
-                                                            <div className="p-3 bg-blue-500/10 rounded-xl"><Icon name="git-branch" className="w-8 h-8" /></div>
-                                                            <h3 className="text-2xl md:text-3xl font-bold">词源与构词法 <span className="text-slate-500 font-normal text-xl ml-2">Etymology</span></h3>
+                                                            <div className="p-3 bg-blue-500/10 rounded-xl"><Icon name="git-branch" className="w-6 h-6 md:w-8 md:h-8" /></div>
+                                                            <h3 className="text-xl md:text-3xl font-bold">词源与构词法 <span className="text-slate-500 font-normal text-lg md:text-xl ml-2">Etymology</span></h3>
                                                         </div>
-                                                        <p className="text-slate-800 dark:text-slate-200 text-2xl md:text-3xl leading-relaxed font-light">{currentWordAI.etymology}</p>
+                                                        <p className="text-slate-800 dark:text-slate-200 text-lg md:text-3xl leading-relaxed font-light">{currentWordAI.etymology}</p>
                                                     </div>
 
-                                                    <div className="relative overflow-hidden glass-panel rounded-3xl p-8 border border-orange-500/20 shadow-[0_8px_30px_rgba(249,115,22,0.05)] hover:border-orange-500/40 transition-colors h-full">
+                                                    <div className="relative overflow-hidden glass-panel rounded-3xl p-6 md:p-8 border border-orange-500/20 shadow-[0_8px_30px_rgba(249,115,22,0.05)] hover:border-orange-500/40 transition-colors h-full">
                                                         <SectionMask sectionName="memory" title="趣味记忆法" iconColorClass="text-orange-400" />
                                                         <div className="flex items-center gap-4 mb-6 text-orange-400 border-b border-orange-500/20 pb-4">
-                                                            <div className="p-3 bg-orange-500/10 rounded-xl"><Icon name="lightbulb" className="w-8 h-8" /></div>
-                                                            <h3 className="text-2xl md:text-3xl font-bold">趣味记忆法 <span className="text-slate-500 font-normal text-xl ml-2">Memory</span></h3>
+                                                            <div className="p-3 bg-orange-500/10 rounded-xl"><Icon name="lightbulb" className="w-6 h-6 md:w-8 md:h-8" /></div>
+                                                            <h3 className="text-xl md:text-3xl font-bold">趣味记忆法 <span className="text-slate-500 font-normal text-lg md:text-xl ml-2">Memory</span></h3>
                                                         </div>
-                                                        <p className="text-slate-800 dark:text-slate-200 text-2xl md:text-3xl leading-relaxed font-light">{currentWordAI.memory}</p>
+                                                        <p className="text-slate-800 dark:text-slate-200 text-lg md:text-3xl leading-relaxed font-light">{currentWordAI.memory}</p>
                                                     </div>
                                                     
-                                                    <div className="relative overflow-hidden glass-panel rounded-3xl p-8 border border-purple-500/20 shadow-[0_8px_30px_rgba(168,85,247,0.05)] hover:border-purple-500/40 transition-colors h-full">
+                                                    <div className="relative overflow-hidden glass-panel rounded-3xl p-6 md:p-8 border border-purple-500/20 shadow-[0_8px_30px_rgba(168,85,247,0.05)] hover:border-purple-500/40 transition-colors h-full">
                                                         <SectionMask sectionName="usage" title="核心搭配" iconColorClass="text-purple-400" />
                                                         <div className="flex items-center gap-4 mb-6 text-purple-400 border-b border-purple-500/20 pb-4">
-                                                            <div className="p-3 bg-purple-500/10 rounded-xl"><Icon name="link" className="w-8 h-8" /></div>
-                                                            <h3 className="text-2xl md:text-3xl font-bold">核心搭配 <span className="text-slate-500 font-normal text-xl ml-2">Usage</span></h3>
+                                                            <div className="p-3 bg-purple-500/10 rounded-xl"><Icon name="link" className="w-6 h-6 md:w-8 md:h-8" /></div>
+                                                            <h3 className="text-xl md:text-3xl font-bold">核心搭配 <span className="text-slate-500 font-normal text-lg md:text-xl ml-2">Usage</span></h3>
                                                         </div>
-                                                        <p className="text-slate-800 dark:text-slate-200 text-2xl md:text-3xl leading-relaxed whitespace-pre-wrap font-light">
+                                                        <p className="text-slate-800 dark:text-slate-200 text-lg md:text-3xl leading-relaxed whitespace-pre-wrap font-light">
                                                             {typeof currentWordAI.usage === 'string' ? currentWordAI.usage.split(',').map(u => u.trim()).filter(u => u).join(', ') : (Array.isArray(currentWordAI.usage) ? currentWordAI.usage.join(', ') : String(currentWordAI.usage))}
                                                         </p>
                                                     </div>
@@ -1038,16 +1046,16 @@
 
                                     {currentSlide === 2 && (
                                         currentWordAI ? (
-                                            <div className="relative overflow-hidden glass-panel rounded-3xl p-8 md:p-10 border border-emerald-500/20 shadow-[0_8px_30px_rgba(16,185,129,0.05)] flex flex-col hover:border-emerald-500/40 transition-colors h-full">
+                                            <div className="relative overflow-hidden glass-panel rounded-3xl p-6 md:p-10 border border-emerald-500/20 shadow-[0_8px_30px_rgba(16,185,129,0.05)] flex flex-col hover:border-emerald-500/40 transition-colors h-full">
                                                 <SectionMask sectionName="examples" title="情景例句" iconColorClass="text-emerald-400" />
-                                                <div className="flex items-center justify-between mb-8 border-b border-emerald-500/20 pb-4 text-emerald-400">
+                                                <div className="flex flex-wrap gap-4 items-center justify-between mb-8 border-b border-emerald-500/20 pb-4 text-emerald-400">
                                                     <div className="flex items-center gap-4">
-                                                        <div className="p-3 bg-emerald-500/10 rounded-xl"><Icon name="book-open-check" className="w-8 h-8" /></div>
-                                                        <h3 className="text-2xl md:text-3xl font-bold">情景例句 <span className="text-slate-500 font-normal text-xl ml-2">Examples</span></h3>
+                                                        <div className="p-3 bg-emerald-500/10 rounded-xl"><Icon name="book-open-check" className="w-6 h-6 md:w-8 md:h-8" /></div>
+                                                        <h3 className="text-xl md:text-3xl font-bold">情景例句 <span className="text-slate-500 font-normal text-lg md:text-xl ml-2">Examples</span></h3>
                                                     </div>
-                                                    <div className="flex items-center gap-2 bg-emerald-500/10 px-4 py-2 rounded-2xl">
-                                                        <Icon name="gauge" className="w-5 h-5 text-emerald-500 dark:text-emerald-400" />
-                                                        <span className="text-emerald-600 dark:text-emerald-400 font-medium text-base mr-1 hidden sm:inline">句速</span>
+                                                    <div className="flex items-center gap-2 bg-emerald-500/10 px-4 py-2 rounded-2xl shrink-0">
+                                                        <Icon name="gauge" className="w-4 h-4 md:w-5 md:h-5 text-emerald-500 dark:text-emerald-400" />
+                                                        <span className="text-emerald-600 dark:text-emerald-400 font-medium text-sm md:text-base mr-1 hidden sm:inline">句速</span>
                                                         <select 
                                                             value={exampleSpeed}
                                                             onChange={(e) => {
@@ -1055,7 +1063,7 @@
                                                                 setExampleSpeed(speed);
                                                                 localStorage.setItem('exampleSpeed', speed);
                                                             }}
-                                                            className="bg-transparent text-emerald-600 dark:text-emerald-400 text-base font-bold outline-none cursor-pointer [&>option]:bg-white dark:[&>option]:bg-slate-800"
+                                                            className="bg-transparent text-emerald-600 dark:text-emerald-400 text-sm md:text-base font-bold outline-none cursor-pointer [&>option]:bg-white dark:[&>option]:bg-slate-800"
                                                             onClick={(e) => e.stopPropagation()}
                                                         >
                                                             <option value="0.75">0.75x</option>
@@ -1066,18 +1074,18 @@
                                                     </div>
                                                 </div>
                                                 
-                                                <div className="space-y-10 mt-2">
+                                                <div className="space-y-8 md:space-y-10 mt-2">
                                                     {currentWordAI.examples && currentWordAI.examples.map((ex, idx) => (
                                                         <div key={idx} className="group relative pl-6 md:pl-8 border-l-4 border-slate-200 dark:border-slate-700 hover:border-emerald-400 transition-colors duration-300">
                                                             <button 
                                                                 onClick={(e) => { e.stopPropagation(); speakWord(ex.en, true); }}
-                                                                className="absolute -left-7 top-1 md:-left-8 md:-top-2 p-3 md:p-4 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-emerald-400 rounded-full transition-all duration-300 hover:bg-emerald-500/20 hover:border-emerald-400 hover:scale-110 shadow-lg opacity-80 group-hover:opacity-100 z-10 cursor-pointer"
+                                                                className="absolute -left-6 top-1 md:-left-8 md:-top-2 p-2 md:p-4 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-emerald-400 rounded-full transition-all duration-300 hover:bg-emerald-500/20 hover:border-emerald-400 hover:scale-110 shadow-lg opacity-80 group-hover:opacity-100 z-10 cursor-pointer"
                                                                 title="朗读句子"
                                                             >
-                                                                <Icon name="play" className="w-5 h-5 md:w-6 md:h-6 fill-current" />
+                                                                <Icon name="play" className="w-4 h-4 md:w-6 md:h-6 fill-current" />
                                                             </button>
-                                                            <p className="text-3xl md:text-4xl text-slate-900 dark:text-slate-100 font-medium mb-4 leading-snug">{ex.en}</p>
-                                                            <p className="text-xl md:text-2xl text-emerald-200/60 font-light">{ex.zh}</p>
+                                                            <p className="text-xl md:text-3xl lg:text-4xl text-slate-900 dark:text-slate-100 font-medium mb-2 md:mb-4 leading-snug">{ex.en}</p>
+                                                            <p className="text-base md:text-xl lg:text-2xl text-emerald-600/80 dark:text-emerald-200/60 font-light">{ex.zh}</p>
                                                         </div>
                                                     ))}
                                                 </div>
